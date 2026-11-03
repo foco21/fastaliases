@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Fastmail Alias",
+  "name": "Aliases for Fastmail",
   "version": "1.0.0",
-  "description": "Create Fastmail Masked Email aliases with custom prefixes and fill them into signup forms.",
-  "permissions": ["storage", "activeTab", "contextMenus"],
+  "description": "Create Fastmail Masked Email aliases with a custom prefix and fill them into signup forms. Not affiliated with Fastmail.",
+  "permissions": ["activeTab", "contextMenus"],
   "host_permissions": ["https://api.fastmail.com/*"],
   "background": { "service_worker": "background.js" },
   "content_scripts": [{

@@ -1,4 +1,6 @@
-# Fastmail Alias
+# Aliases for Fastmail
+
+*An independent project, not affiliated with or endorsed by Fastmail.*
 
 Chrome extension (Manifest V3, plain JS, no build step) that creates Fastmail Masked Email aliases with a custom prefix (`netflix.k3j9x@fastmail.com`) and fills them into signup forms.
 
@@ -23,6 +25,7 @@ Bitwarden is not integrated. The extension fills the email field, and when you s
 - The token lives in the extension's own IndexedDB, not `chrome.storage.local` (which content scripts inside web pages can read). It is never synced, never shown again after saving, and sent only to `api.fastmail.com`. All API calls happen in the service worker. Content scripts only get the current site's aliases.
 - The site's base domain comes from a short built-in list of second-level suffixes (`co.uk`, `com.au`, …), plus common shared hosts (`github.io`, `vercel.app`, `netlify.app`, …) where each subdomain is its own site. It is not the full Public Suffix List, so a shared host missing from the list would group unrelated sites together.
 - Run `node test.js` to check the domain/prefix helpers.
+- Run `./build.sh` to make the Chrome Web Store zip in `dist/` (extension files only, no tests). Store listing text and images are in `store/`, the privacy policy in `PRIVACY.md`.
 - Manual test page: run `python3 -m http.server 8000 -d test-site` and open http://localhost:8000. It has every kind of email field the extension handles.
 - The popup uses IBM Plex Sans and Mono, bundled in `fonts/` (SIL Open Font License, see `fonts/OFL.txt`) so it never loads fonts from the web.
 

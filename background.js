@@ -25,14 +25,7 @@ function idb(mode, fn) {
 const loadToken = () => idb('readonly', s => s.get('token'));
 const saveToken = t => idb('readwrite', s => t ? s.put(t, 'token') : s.delete('token'));
 
-// One-time move of tokens saved by v1.0.0 out of chrome.storage.local.
-const migrated = (async () => {
-  const { token } = await chrome.storage.local.get('token');
-  if (token) { await saveToken(token); await chrome.storage.local.remove('token'); }
-})();
-
 async function getToken() {
-  await migrated;
   const token = await loadToken();
   if (!token) throw fail('NO_TOKEN');
   return token;
@@ -115,11 +108,10 @@ async function handle(m, sender) {
     case 'setState': return setState(m.id, m.state);
     case 'saveToken':
       if (typeof m.token !== 'string') throw fail('API', 'Bad request.');
-      await migrated;
       await saveToken(m.token.trim());
       session = cache = null;
       return {};
-    case 'hasToken': await migrated; return { has: !!(await loadToken()) };
+    case 'hasToken': return { has: !!(await loadToken()) };
     case 'test': return { count: (await list(await getSession(m.token || await getToken()))).length };
     case 'openOptions': return chrome.runtime.openOptionsPage(), {};
   }
@@ -134,7 +126,6 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   chrome.contextMenus.removeAll(() =>
     chrome.contextMenus.create({ id: 'create-alias', title: 'Create Fastmail alias here', contexts: ['editable'] }));
-  await migrated;
   if (reason === 'install' && !(await loadToken())) chrome.runtime.openOptionsPage();
 });
 

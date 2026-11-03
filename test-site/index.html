@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test Signup</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --fg:#1d1d1f; --muted:#6b7280; --line:#d9dce1; --accent:#7c3aed; --ok:#15803d; color-scheme: light dark; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141518; --card:#1f2023; --fg:#ececef; --muted:#9ca3af; --line:#3a3b40; --accent:#a78bfa; --ok:#4ade80; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 520px; margin: 40px auto; padding: 0 16px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin: 16px 0; }
+  h2 { font-size: 15px; margin: 0 0 2px; }
+  .muted { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
+  input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); font: inherit; }
+  button { margin-top: 14px; padding: 10px 16px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  .state { margin-top: 8px; font: 13px ui-monospace, monospace; color: var(--muted); word-break: break-all; }
+  .state b { color: var(--ok); }
+  #submitted { border-color: var(--ok); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Test Signup</h1>
+  <p class="muted">A fake site for testing Aliases for Fastmail. Nothing here is sent anywhere. Submitting reloads this page with the values in the URL.</p>
+
+  <div class="card" id="submitted" hidden>
+    <h2>Submitted</h2>
+    <div class="state" id="submitted-values"></div>
+  </div>
+
+  <form class="card" id="signup" method="get" action="">
+    <h2>1. Sign up</h2>
+    <p class="muted">Email is autofocused. Creating an alias should also fill the empty "Confirm email". The password and submit let Bitwarden offer to save the login.</p>
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" autocomplete="email" autofocus>
+    <label for="email_confirm">Confirm email</label>
+    <input type="email" id="email_confirm" name="email_confirm" autocomplete="email">
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" autocomplete="new-password" value="Test-password-123">
+    <button type="submit">Create account</button>
+  </form>
+
+  <div class="card">
+    <h2>2. Text field named "email"</h2>
+    <p class="muted">A type="text" input that only says "email" in its name and placeholder.</p>
+    <label for="login">Login</label>
+    <input type="text" id="login" name="user_email" placeholder="Your email address">
+  </div>
+
+  <div class="card">
+    <h2>3. React-style controlled field</h2>
+    <p class="muted">Keeps its own state from input events, like React or Vue. If the fill worked, the state below matches the field.</p>
+    <label for="controlled">Email</label>
+    <input type="email" id="controlled">
+    <div class="state">state: <b id="controlled-state">(empty)</b></div>
+  </div>
+
+  <div class="card">
+    <h2>4. Field rendered late</h2>
+    <p class="muted">Appears 2 seconds after load, the way single-page apps render forms.</p>
+    <div id="late"></div>
+  </div>
+
+  <div class="card">
+    <h2>5. Fields inside web components</h2>
+    <p class="muted">Like web-component forms. The badge should show on all three. The last two copy Reddit: the input is only name="username" and the "Email or username" label sits on the outer element. The last one also uses a closed shadow root, which page scripts can't see into.</p>
+    <div id="shadow-host"></div>
+    <test-text-input id="wc-open" name="username" label="Email or username"></test-text-input>
+    <test-text-input id="wc-closed" name="username" label="Email or username" closed></test-text-input>
+  </div>
+
+  <div class="card">
+    <h2>5b. Label linked with aria-labelledby</h2>
+    <p class="muted">Like React UI libraries: the input has no email hint itself and points to a separate text element.</p>
+    <div class="label-text" id="lbl-contact" style="font-size:13px;font-weight:600;margin:10px 0 4px">Contact email</div>
+    <input type="text" id="labelledby" name="field_7" aria-labelledby="lbl-contact">
+  </div>
+
+  <div class="card">
+    <h2>5c. Form inside an inline iframe</h2>
+    <p class="muted">A srcdoc iframe, like some login and checkout widgets. Its address is about:blank, but it belongs to this site.</p>
+    <iframe id="srcdoc-frame" title="Inline signup widget" style="width:100%;height:300px;border:1px dashed var(--line);border-radius:8px;background:#fff"
+      srcdoc="<body style='margin:12px;font:15px system-ui,sans-serif'><label for='f' style='display:block;font-size:13px;font-weight:600;margin-bottom:4px'>Email</label><input type='email' id='f' name='email' style='width:100%;padding:10px 12px;border:1px solid #d9dce1;border-radius:8px;font:inherit;box-sizing:border-box'></body>"></iframe>
+  </div>
+
+  <div class="card">
+    <h2>6. Fields that get the plain badge</h2>
+    <p class="muted">The traced outline would look wrong here, so these show the small round badge: a pill-shaped field, a short field, and one with no border.</p>
+    <label for="pill">Pill</label>
+    <input type="email" id="pill" style="border-radius:999px">
+    <label for="short">Short (28px)</label>
+    <input type="email" id="short" style="padding:3px 8px;height:28px">
+    <label for="borderless">No border</label>
+    <input type="email" id="borderless" style="border:0;background:rgba(124,58,237,.08)">
+  </div>
+
+  <div class="card">
+    <h2>7. Fields that should be ignored</h2>
+    <p class="muted">No badge should show on these: a disabled email field, a read-only one, and a plain search box.</p>
+    <label for="disabled">Disabled email</label>
+    <input type="email" id="disabled" disabled placeholder="disabled">
+    <label for="readonly">Read-only email</label>
+    <input type="email" id="readonly" readonly value="readonly@example.com">
+    <label for="search">Search</label>
+    <input type="text" id="search" name="q" placeholder="Search">
+  </div>
+</main>
+
+<script>
+  // Show what the signup form submitted (values come back in the URL).
+  const params = new URLSearchParams(location.search);
+  if (params.has('email')) {
+    document.getElementById('submitted').hidden = false;
+    document.getElementById('submitted-values').textContent =
+      `email: ${params.get('email') || '(empty)'}\nconfirm: ${params.get('email_confirm') || '(empty)'}`;
+  }
+
+  // React-style: state only changes through input events, so a plain .value write would not show here.
+  let state = '';
+  const controlled = document.getElementById('controlled');
+  controlled.addEventListener('input', e => {
+    state = e.target.value;
+    document.getElementById('controlled-state').textContent = state || '(empty)';
+  });
+
+  setTimeout(() => {
+    document.getElementById('late').innerHTML =
+      '<label for="late-email">Email</label><input type="email" id="late-email" name="late_email">';
+  }, 2000);
+
+  const root = document.getElementById('shadow-host').attachShadow({ mode: 'open' });
+  root.innerHTML = `<style>input{width:100%;padding:10px 12px;border:1px solid #d9dce1;border-radius:8px;font:inherit;box-sizing:border-box}
+    label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}</style>
+    <label for="s">Email</label><input type="email" id="s" name="shadow_email">`;
+
+  // Reddit-style component: label on the host, plain name="username" input inside.
+  customElements.define('test-text-input', class extends HTMLElement {
+    connectedCallback() {
+      const r = this.attachShadow({ mode: this.hasAttribute('closed') ? 'closed' : 'open' });
+      const label = this.getAttribute('label') + (this.hasAttribute('closed') ? ' (closed shadow root)' : ' (open shadow root)');
+      r.innerHTML = `<style>input{width:100%;padding:10px 12px;border:1px solid #d9dce1;border-radius:8px;font:inherit;box-sizing:border-box}
+        span{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}</style>
+        <span>${label}</span><input type="text" name="${this.getAttribute('name')}" autocomplete="username">`;
+    }
+  });
+</script>
+</body>
+</html>
