@@ -7,6 +7,7 @@ Aliases for Fastmail is a browser extension that creates Fastmail Masked Email a
 ## What the extension stores
 
 - **Your Fastmail API token.** You paste it into the settings page. It is stored only in this browser, in the extension's private storage. It is never synced to other devices and never shown again after you save it.
+- **The sites where you turned the @ button off**, if any, so it stays off there. This list stays in your browser.
 - **A short-lived list of your masked email addresses**, kept in memory for about a minute so the extension doesn't ask Fastmail on every click. It disappears when the browser closes or the extension restarts.
 
 ## Where data goes

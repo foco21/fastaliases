@@ -3,41 +3,74 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Test Signup</title>
+<title>Detection Test Bench</title>
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --fg:#1d1d1f; --muted:#6b7280; --line:#d9dce1; --accent:#7c3aed; --ok:#15803d; color-scheme: light dark; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#141518; --card:#1f2023; --fg:#ececef; --muted:#9ca3af; --line:#3a3b40; --accent:#a78bfa; --ok:#4ade80; } }
+  :root { --bg:#f6f7f9; --card:#fff; --fg:#1d1d1f; --muted:#6b7280; --line:#d9dce1; --accent:#7c3aed; --ok:#15803d; --bad:#b91c1c; --wait:#a16207; color-scheme: light dark; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141518; --card:#1f2023; --fg:#ececef; --muted:#9ca3af; --line:#3a3b40; --accent:#a78bfa; --ok:#4ade80; --bad:#f87171; --wait:#facc15; } }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  main { max-width: 520px; margin: 40px auto; padding: 0 16px; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin: 16px 0; }
-  h2 { font-size: 15px; margin: 0 0 2px; }
-  .muted { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  main { max-width: 560px; margin: 0 auto; padding: 0 16px 80px; }
+  h1 { font-size: 22px; margin: 28px 0 4px; }
+  h2.group { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 32px 0 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin: 14px 0; }
+  .card h3 { font-size: 15px; margin: 0 0 2px; display: flex; gap: 8px; align-items: baseline; justify-content: space-between; }
+  .muted { color: var(--muted); font-size: 13px; margin: 0 0 4px; }
+  .expected { font-size: 13px; margin: 0 0 10px; }
+  .expected b { font-weight: 600; }
   label { display: block; font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
-  input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); font: inherit; }
-  button { margin-top: 14px; padding: 10px 16px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  input, textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); font: inherit; }
+  textarea { min-height: 70px; resize: vertical; }
+  button { margin-top: 12px; padding: 9px 16px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  button.plain { background: transparent; color: var(--fg); border: 1px solid var(--line); }
   .state { margin-top: 8px; font: 13px ui-monospace, monospace; color: var(--muted); word-break: break-all; }
   .state b { color: var(--ok); }
-  #submitted { border-color: var(--ok); }
+  iframe { width: 100%; border: 1px dashed var(--line); border-radius: 8px; }
+  /* status pills */
+  .st { flex: none; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .st.pass { color: var(--ok); border-color: var(--ok); }
+  .st.fail { color: var(--bad); border-color: var(--bad); }
+  .st.wait { color: var(--wait); border-color: var(--wait); }
+  .row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+  .row label { margin: 0; flex: 1; }
+  /* summary bar */
+  .summary { position: sticky; top: 0; z-index: 5; margin: 0 -16px; padding: 10px 16px; background: var(--bg); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .summary .count { font-weight: 700; font-size: 16px; }
+  .summary .detail { font-size: 13px; color: var(--muted); flex: 1 1 100%; order: 3; }
+  .summary button { margin: 0; padding: 6px 12px; }
+  .summary .detail a { color: var(--bad); font-weight: 600; cursor: pointer; text-decoration: underline; }
+  .st.fail { text-transform: uppercase; }
+  .why { margin-top: 4px; font: 12px ui-monospace, monospace; color: var(--bad); }
+  /* case 9 */
+  .clip { overflow: hidden; height: 64px; padding: 10px 0; border: 1px dashed var(--line); border-radius: 8px; }
+  /* fill check */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.v { font-family: ui-monospace, monospace; word-break: break-all; }
+  .yes { color: var(--ok); font-weight: 600; } .no { color: var(--muted); }
+  dialog { border: 1px solid var(--line); border-radius: 16px; padding: 20px 24px 24px; width: min(400px, 92vw); background: var(--card); color: var(--fg); }
+  dialog::backdrop { background: rgba(0,0,0,.5); }
 </style>
 </head>
 <body>
 <main>
-  <h1>Test Signup</h1>
-  <p class="muted">A fake site for testing Aliases for Fastmail. Nothing here is sent anywhere. Submitting reloads this page with the values in the URL.</p>
-
-  <div class="card" id="submitted" hidden>
-    <h2>Submitted</h2>
-    <div class="state" id="submitted-values"></div>
+  <div class="summary" role="status" aria-live="polite">
+    <span class="count" id="sum-count">Starting…</span>
+    <span class="detail" id="sum-detail">Checks run by themselves a second after the page loads.</span>
+    <button type="button" id="run-all">Run all checks</button>
   </div>
 
+  <h1>Detection Test Bench</h1>
+  <p class="muted">A fake site for testing Aliases for Fastmail. Nothing here is sent anywhere. A check passes when the badge appears (or stays away) as expected. The page reads the <code>data-fmalias="attached"</code> attribute the extension puts on the field that has the badge.</p>
+
+  <h2 class="group">Should get the badge</h2>
+
   <form class="card" id="signup" method="get" action="">
-    <h2>1. Sign up</h2>
-    <p class="muted">Email is autofocused. Creating an alias should also fill the empty "Confirm email". The password and submit let Bitwarden offer to save the login.</p>
-    <label for="email">Email</label>
+    <h3>1. Classic signup</h3>
+    <p class="muted">Email is autofocused; confirm email, password and a "Create account" button sit in the same form.</p>
+    <p class="expected">Expected: <b>badge</b> on Email and on Confirm email (only the field you're in shows it).</p>
+    <div class="row"><label for="email">Email</label><span class="st" data-check="email"></span></div>
     <input type="email" id="email" name="email" autocomplete="email" autofocus>
-    <label for="email_confirm">Confirm email</label>
+    <div class="row"><label for="email_confirm">Confirm email</label><span class="st" data-check="email_confirm"></span></div>
     <input type="email" id="email_confirm" name="email_confirm" autocomplete="email">
     <label for="password">Password</label>
     <input type="password" id="password" name="password" autocomplete="new-password" value="Test-password-123">
@@ -45,108 +78,421 @@
   </form>
 
   <div class="card">
-    <h2>2. Text field named "email"</h2>
-    <p class="muted">A type="text" input that only says "email" in its name and placeholder.</p>
+    <h3>2. Text field named "email" <span class="st" data-check="login"></span></h3>
+    <p class="muted">type="text", name="email", placeholder "Your email address". Scores 2 (name) + 1 (placeholder) = 3.</p>
+    <p class="expected">Expected: <b>badge</b>.</p>
     <label for="login">Login</label>
-    <input type="text" id="login" name="user_email" placeholder="Your email address">
+    <input type="text" id="login" name="email" placeholder="Your email address">
   </div>
 
   <div class="card">
-    <h2>3. React-style controlled field</h2>
-    <p class="muted">Keeps its own state from input events, like React or Vue. If the fill worked, the state below matches the field.</p>
+    <h3>3. React-style controlled field <span class="st" data-check="controlled"></span></h3>
+    <p class="muted">Keeps its own state from input events, like React or Vue. Fill it with the @ (Create, or reuse an alias).</p>
+    <p class="expected">Expected: <b>badge, then fills state</b>: after filling, the state below equals the alias.</p>
     <label for="controlled">Email</label>
     <input type="email" id="controlled">
     <div class="state">state: <b id="controlled-state">(empty)</b></div>
   </div>
 
+  <form class="card" onsubmit="return false">
+    <h3>4. Email-first step <span class="st" data-check="step-email"></span></h3>
+    <p class="muted">Only an email field and "Continue", like the first step of Spotify's or GitHub's signup.</p>
+    <p class="expected">Expected: <b>badge</b>.</p>
+    <label for="step-email">Email address</label>
+    <input type="email" id="step-email" name="email" autocomplete="email">
+    <button type="submit">Continue</button>
+  </form>
+
   <div class="card">
-    <h2>4. Field rendered late</h2>
-    <p class="muted">Appears 2 seconds after load, the way single-page apps render forms.</p>
-    <div id="late"></div>
+    <h3>5. Signup in a modal dialog <span class="st" data-check="dialog-email"></span></h3>
+    <p class="muted">The dialog is built when you click the button (content added later) and opened as a native modal, which makes the rest of the page unclickable.</p>
+    <p class="expected">Expected: <b>badge</b> on the dialog's email field, and the panel works inside it.</p>
+    <button type="button" id="open-dialog">Open signup dialog</button>
   </div>
 
   <div class="card">
-    <h2>5. Fields inside web components</h2>
-    <p class="muted">Like web-component forms. The badge should show on all three. The last two copy Reddit: the input is only name="username" and the "Email or username" label sits on the outer element. The last one also uses a closed shadow root, which page scripts can't see into.</p>
+    <h3>6. Field inside a Shadow DOM web component <span class="st" data-check="s"></span></h3>
+    <p class="muted">An open shadow root with its own email input.</p>
+    <p class="expected">Expected: <b>badge</b>.</p>
     <div id="shadow-host"></div>
+  </div>
+
+  <div class="card">
+    <h3>7. Field inside a same-origin iframe <span class="st" data-check="f"></span></h3>
+    <p class="muted">A separate page (frame.html) from this same site, embedded in an iframe.</p>
+    <p class="expected">Expected: <b>badge</b> inside the iframe.</p>
+    <iframe id="frame" src="frame.html" title="Embedded signup" style="height:96px"></iframe>
+  </div>
+
+  <form class="card" onsubmit="return false">
+    <h3>8. Newsletter box <span class="st" data-check="news-email"></span></h3>
+    <p class="muted">Just type="email" and "Subscribe", no password.</p>
+    <p class="expected">Expected: <b>badge</b>.</p>
+    <label for="news-email">Newsletter</label>
+    <input type="email" id="news-email" name="email" placeholder="you@example.com">
+    <button type="submit">Subscribe</button>
+  </form>
+
+  <div class="card">
+    <h3>9. Inside overflow: hidden <span class="st" data-check="clipped"></span></h3>
+    <p class="muted">The field fills a container with overflow: hidden, so anything drawn inside it past the edges would be cut off.</p>
+    <p class="expected">Expected: <b>badge</b>, and the bubble's circle pokes out past the dashed box without being cut.</p>
+    <div class="clip"><input type="email" id="clipped" name="email" aria-label="Email"></div>
+  </div>
+
+  <div class="card">
+    <h3>10. Small field and pill field</h3>
+    <p class="muted">A 32px-tall field and a fully rounded one. The traced outline would look wrong on these.</p>
+    <p class="expected">Expected: <b>badge</b>, using the small round fallback badge, not the bubble.</p>
+    <div class="row"><label for="short">Small (32px tall)</label><span class="st" data-check="short"></span></div>
+    <input type="email" id="short" style="height:32px;padding:3px 10px">
+    <div class="row"><label for="pill">Pill (radius 999px)</label><span class="st" data-check="pill"></span></div>
+    <input type="email" id="pill" style="border-radius:999px">
+  </div>
+
+  <h2 class="group">Should NOT get the badge</h2>
+
+  <div class="card">
+    <h3>11. Webmail-style search <span class="st" data-check="proton-search"></span></h3>
+    <p class="muted">A copy of Proton Mail's search box: it mentions "email address" but is a search.</p>
+    <p class="expected">Expected: <b>no badge</b>.</p>
+    <input type="text" id="proton-search" placeholder="Search date, name, email address, or subject" aria-label="Search messages">
+  </div>
+
+  <div class="card">
+    <h3>12. type="search" site search <span class="st" data-check="site-search"></span></h3>
+    <p class="muted">A regular site search box.</p>
+    <p class="expected">Expected: <b>no badge</b>.</p>
+    <input type="search" id="site-search" name="q" placeholder="Search the site" aria-label="Search">
+  </div>
+
+  <form class="card" onsubmit="return false">
+    <h3>13. Contact form message <span class="st" data-check="message"></span></h3>
+    <p class="muted">A textarea that mentions email in its placeholder. It's a message, not an address.</p>
+    <p class="expected">Expected: <b>no badge</b>.</p>
+    <label for="message">Message</label>
+    <textarea id="message" name="message" placeholder="Your message about email deliverability"></textarea>
+    <button type="submit">Send</button>
+  </form>
+
+  <div class="card">
+    <h3>14. Filter rule inside role="search" <span class="st" data-check="forward"></span></h3>
+    <p class="muted">An email field in a mail-filter panel marked role="search", like "Forward to email" in a webmail rule editor.</p>
+    <p class="expected">Expected: <b>no badge</b>.</p>
+    <div role="search"><label for="forward">Forward to email</label><input type="email" id="forward" name="forward_email" placeholder="Forward to email"></div>
+  </div>
+
+  <h2 class="group">More cases</h2>
+
+  <div class="card">
+    <h3>15. Login pop-up that keeps focus (like Reddit) <span class="st" data-check="modal-user"></span></h3>
+    <p class="muted">A dialog inside a web component that pulls focus back to its Close button when focus leaves, centered with a transform. The username field has autocomplete="username"; there's a password field with an icon.</p>
+    <p class="expected">Expected: <b>badge</b>, and the panel stays open when you click the bubble.</p>
+    <button type="button" id="open-modal">Open login window</button>
+    <test-modal id="modal"></test-modal>
+  </div>
+
+  <div class="card">
+    <h3>16. Web component fields</h3>
+    <p class="muted">Inputs inside components with name="username" and autocomplete="username", like Reddit's.</p>
+    <p class="expected">Expected: <b>badge</b> on all three. The closed one can't be read by page scripts, so check it by eye.</p>
+    <div class="row"><span style="flex:1"></span><span class="st" data-check="wc-open"></span></div>
     <test-text-input id="wc-open" name="username" label="Email or username"></test-text-input>
+    <div class="row"><span style="flex:1"></span><span class="st" data-check="wc-slotted"></span></div>
+    <test-slotted-input id="wc-slotted"><span slot="label">Email or username (slotted label)</span></test-slotted-input>
+    <div class="row"><span style="flex:1"></span><span class="st">check by eye</span></div>
     <test-text-input id="wc-closed" name="username" label="Email or username" closed></test-text-input>
   </div>
 
   <div class="card">
-    <h2>5b. Label linked with aria-labelledby</h2>
-    <p class="muted">Like React UI libraries: the input has no email hint itself and points to a separate text element.</p>
-    <div class="label-text" id="lbl-contact" style="font-size:13px;font-weight:600;margin:10px 0 4px">Contact email</div>
-    <input type="text" id="labelledby" name="field_7" aria-labelledby="lbl-contact">
+    <h3>17. Field rendered late <span class="st" data-check="late-email"></span></h3>
+    <p class="muted">Appears 2 seconds after load, the way single-page apps render forms.</p>
+    <p class="expected">Expected: <b>badge</b>.</p>
+    <div id="late"></div>
   </div>
 
   <div class="card">
-    <h2>5c. Form inside an inline iframe</h2>
-    <p class="muted">A srcdoc iframe, like some login and checkout widgets. Its address is about:blank, but it belongs to this site.</p>
-    <iframe id="srcdoc-frame" title="Inline signup widget" style="width:100%;height:300px;border:1px dashed var(--line);border-radius:8px;background:#fff"
+    <h3>18. Form inside an inline (srcdoc) iframe <span class="st" data-check="srcdoc"></span></h3>
+    <p class="muted">Its address is about:blank, but it belongs to this site.</p>
+    <p class="expected">Expected: <b>badge</b>.</p>
+    <iframe id="srcdoc-frame" title="Inline signup widget" style="height:96px"
       srcdoc="<body style='margin:12px;font:15px system-ui,sans-serif'><label for='f' style='display:block;font-size:13px;font-weight:600;margin-bottom:4px'>Email</label><input type='email' id='f' name='email' style='width:100%;padding:10px 12px;border:1px solid #d9dce1;border-radius:8px;font:inherit;box-sizing:border-box'></body>"></iframe>
   </div>
 
   <div class="card">
-    <h2>6. Fields that get the plain badge</h2>
-    <p class="muted">The traced outline would look wrong here, so these show the small round badge: a pill-shaped field, a short field, and one with no border.</p>
-    <label for="pill">Pill</label>
-    <input type="email" id="pill" style="border-radius:999px">
-    <label for="short">Short (28px)</label>
-    <input type="email" id="short" style="padding:3px 8px;height:28px">
-    <label for="borderless">No border</label>
+    <h3>19. Borderless field and text newsletter field</h3>
+    <p class="muted">A field with no border (fallback badge), and a type="text" newsletter field named email with an "email" label (2 + 1 = 3).</p>
+    <p class="expected">Expected: <b>badge</b> on both.</p>
+    <div class="row"><label for="borderless">Borderless email</label><span class="st" data-check="borderless"></span></div>
     <input type="email" id="borderless" style="border:0;background:rgba(124,58,237,.08)">
+    <form onsubmit="return false"><div class="row"><label for="news-text">Text newsletter email</label><span class="st" data-check="news-text"></span></div><input type="text" id="news-text" name="email"><button type="submit">Subscribe</button></form>
   </div>
 
   <div class="card">
-    <h2>7. Fields that should be ignored</h2>
-    <p class="muted">No badge should show on these: a disabled email field, a read-only one, and a plain search box.</p>
-    <label for="disabled">Disabled email</label>
-    <input type="email" id="disabled" disabled placeholder="disabled">
-    <label for="readonly">Read-only email</label>
+    <h3>20. Hints that aren't enough on their own</h3>
+    <p class="muted">Only a placeholder, a label or aria-labelledby mention email (1 point each), a field named emailSearch, a combobox, an email field inside class="site-search", and a read-only field.</p>
+    <p class="expected">Expected: <b>no badge</b> on any of them. The disabled field can't be focused, so the run skips it.</p>
+    <div class="row"><label for="ph-only">Placeholder only</label><span class="st" data-check="ph-only"></span></div>
+    <input type="text" id="ph-only" placeholder="Your email">
+    <div class="row"><label for="label-only">aria-label only</label><span class="st" data-check="label-only"></span></div>
+    <input type="text" id="label-only" aria-label="Email address">
+    <div class="row"><span id="lbl-contact" style="flex:1;font-size:13px;font-weight:600">Contact email (aria-labelledby)</span><span class="st" data-check="labelledby"></span></div>
+    <input type="text" id="labelledby" name="field_7" aria-labelledby="lbl-contact">
+    <div class="row"><label for="email-search">name="emailSearch"</label><span class="st" data-check="email-search"></span></div>
+    <input type="text" id="email-search" name="emailSearch">
+    <div class="row"><label for="combo">role="combobox" named email</label><span class="st" data-check="combo"></span></div>
+    <input type="text" id="combo" name="email" role="combobox">
+    <div class="site-search"><div class="row"><label for="in-search-div">type="email" inside class="site-search"</label><span class="st" data-check="in-search-div"></span></div><input type="email" id="in-search-div" name="email"></div>
+    <div class="row"><label for="readonly">Read-only email</label><span class="st" data-check="readonly"></span></div>
     <input type="email" id="readonly" readonly value="readonly@example.com">
-    <label for="search">Search</label>
-    <input type="text" id="search" name="q" placeholder="Search">
+    <div class="row"><label for="disabled">Disabled email (skipped by the run)</label><span class="st" data-check="disabled"></span></div>
+    <input type="email" id="disabled" disabled placeholder="disabled">
+  </div>
+
+  <h2 class="group">Fill check</h2>
+  <div class="card">
+    <p class="muted" style="margin-bottom:10px">What got filled into each field, and whether the input and change events fired (frameworks like React only notice a fill through these events).</p>
+    <table><thead><tr><th>Field</th><th>Value</th><th>input</th><th>change</th></tr></thead><tbody id="fill-rows"><tr><td colspan="4" class="no">Nothing filled yet.</td></tr></tbody></table>
   </div>
 </main>
 
 <script>
-  // Show what the signup form submitted (values come back in the URL).
+  const $id = id => document.getElementById(id);
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  // ---- page fixtures -------------------------------------------------------------------------
+  // Signup form submit: show what came back in the URL.
   const params = new URLSearchParams(location.search);
-  if (params.has('email')) {
-    document.getElementById('submitted').hidden = false;
-    document.getElementById('submitted-values').textContent =
-      `email: ${params.get('email') || '(empty)'}\nconfirm: ${params.get('email_confirm') || '(empty)'}`;
-  }
+  if (params.has('email')) alert(`Submitted email: ${params.get('email') || '(empty)'}, confirm: ${params.get('email_confirm') || '(empty)'}`);
 
-  // React-style: state only changes through input events, so a plain .value write would not show here.
-  let state = '';
-  const controlled = document.getElementById('controlled');
-  controlled.addEventListener('input', e => {
-    state = e.target.value;
-    document.getElementById('controlled-state').textContent = state || '(empty)';
+  // 3. React-style: state only changes through input events.
+  $id('controlled').addEventListener('input', e => { $id('controlled-state').textContent = e.target.value || '(empty)'; });
+
+  // 5. Native modal dialog, built on first click.
+  $id('open-dialog').onclick = () => {
+    let d = $id('signup-dialog');
+    if (!d) {
+      d = document.createElement('dialog');
+      d.id = 'signup-dialog';
+      d.innerHTML = `<form method="dialog"><h3 style="margin:0 0 4px">Create your account</h3>
+        <label for="dialog-email">Email</label><input type="email" id="dialog-email" name="email" autocomplete="email">
+        <label for="dialog-pw">Password</label><input type="password" id="dialog-pw" autocomplete="new-password">
+        <button type="submit" value="signup">Sign up</button> <button type="submit" class="plain" value="cancel">Close</button></form>`;
+      document.body.append(d);
+    }
+    d.showModal();
+  };
+
+  // 6. Open shadow root.
+  $id('shadow-host').attachShadow({ mode: 'open' }).innerHTML = `<style>input{width:100%;padding:10px 12px;border:1px solid #d9dce1;border-radius:8px;font:inherit;box-sizing:border-box}
+    label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}</style><label for="s">Email</label><input type="email" id="s" name="email">`;
+
+  // 17. Rendered late.
+  setTimeout(() => { $id('late').innerHTML = '<label for="late-email">Email</label><input type="email" id="late-email" name="late_email">'; }, 2000);
+
+  // 15. Reddit-style modal: dialog in a shadow root that sends focus back to Close whenever it leaves.
+  customElements.define('test-modal', class extends HTMLElement {
+    connectedCallback() {
+      const r = this.attachShadow({ mode: 'open' });
+      r.innerHTML = `<style>
+          .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 10; }
+          [role=dialog] { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 380px; padding: 20px 24px 24px;
+            background: #fff; color: #1d1d1f; border-radius: 16px; font: 15px system-ui, sans-serif; }
+          h3 { margin: 0 0 12px; } #close { float: right; border: 0; background: #eee; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; }
+          label { display: block; font-size: 13px; font-weight: 600; }
+          input { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; padding: 10px 12px; border: 1px solid #d9dce1; border-radius: 8px; font: inherit; }
+        </style>
+        <div class="overlay" hidden><div role="dialog" aria-modal="true" aria-label="Log In">
+          <button id="close" aria-label="Close">✕</button><h3>Log In</h3>
+          <label>Email or username<input id="modal-user" type="text" name="username" autocomplete="username"></label>
+          <label style="margin-top:12px"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="currentColor"/></svg> Password<input id="modal-pw" type="password" name="password" autocomplete="current-password"></label>
+        </div></div>`;
+      const overlay = r.querySelector('.overlay'), dialog = r.querySelector('[role=dialog]'), close = r.getElementById('close');
+      this.open = () => { overlay.hidden = false; close.focus(); };
+      this.close = () => { overlay.hidden = true; };
+      close.onclick = this.close;
+      document.addEventListener('focusin', e => { if (!overlay.hidden && !e.composedPath().includes(dialog)) close.focus(); }, true);
+    }
   });
+  $id('open-modal').onclick = () => $id('modal').open();
 
-  setTimeout(() => {
-    document.getElementById('late').innerHTML =
-      '<label for="late-email">Email</label><input type="email" id="late-email" name="late_email">';
-  }, 2000);
-
-  const root = document.getElementById('shadow-host').attachShadow({ mode: 'open' });
-  root.innerHTML = `<style>input{width:100%;padding:10px 12px;border:1px solid #d9dce1;border-radius:8px;font:inherit;box-sizing:border-box}
-    label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}</style>
-    <label for="s">Email</label><input type="email" id="s" name="shadow_email">`;
-
-  // Reddit-style component: label on the host, plain name="username" input inside.
+  // 16. Components: label on the host / label through a slot.
   customElements.define('test-text-input', class extends HTMLElement {
     connectedCallback() {
       const r = this.attachShadow({ mode: this.hasAttribute('closed') ? 'closed' : 'open' });
       const label = this.getAttribute('label') + (this.hasAttribute('closed') ? ' (closed shadow root)' : ' (open shadow root)');
       r.innerHTML = `<style>input{width:100%;padding:10px 12px;border:1px solid #d9dce1;border-radius:8px;font:inherit;box-sizing:border-box}
-        span{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}</style>
+        span{display:block;font-size:13px;font-weight:600;margin:6px 0 4px}</style>
         <span>${label}</span><input type="text" name="${this.getAttribute('name')}" autocomplete="username">`;
     }
   });
+  customElements.define('test-slotted-input', class extends HTMLElement {
+    connectedCallback() {
+      this.attachShadow({ mode: 'open' }).innerHTML = `<style>input{width:100%;padding:10px 12px;border:1px solid #d9dce1;border-radius:8px;font:inherit;box-sizing:border-box}
+        label span{display:block;font-size:13px;font-weight:600;margin:6px 0 4px}</style>
+        <label><span id="fp-input-label"><slot name="label"></slot></span>
+        <input aria-labelledby="fp-input-label" type="text" name="username" autocomplete="username webauthn"></label>`;
+    }
+  });
+
+  // ---- checks ---------------------------------------------------------------------------------
+  const sr = id => $id(id)?.shadowRoot;
+  const frameDoc = id => { try { return $id(id).contentDocument; } catch { return null; } };
+  // expect: 'badge' | 'none'. el() may return null until the field exists; prepare() opens what it's in.
+  const CHECKS = [
+    { id: 'email', name: '1 Email', expect: 'badge', el: () => $id('email') },
+    { id: 'email_confirm', name: '1 Confirm email', expect: 'badge', el: () => $id('email_confirm') },
+    { id: 'login', name: '2 Text named email', expect: 'badge', el: () => $id('login') },
+    { id: 'controlled', name: '3 React field', expect: 'badge', el: () => $id('controlled') },
+    { id: 'step-email', name: '4 Email-first', expect: 'badge', el: () => $id('step-email') },
+    { id: 'dialog-email', name: '5 Modal dialog', expect: 'badge', el: () => $id('dialog-email'), prepare: () => $id('open-dialog').click(), done: () => $id('signup-dialog')?.close() },
+    { id: 's', name: '6 Shadow DOM', expect: 'badge', el: () => sr('shadow-host')?.getElementById('s') },
+    { id: 'f', name: '7 Iframe', expect: 'badge', el: () => frameDoc('frame')?.getElementById('f') },
+    { id: 'news-email', name: '8 Newsletter', expect: 'badge', el: () => $id('news-email') },
+    { id: 'clipped', name: '9 overflow: hidden', expect: 'badge', el: () => $id('clipped') },
+    { id: 'short', name: '10 Small field', expect: 'badge', el: () => $id('short') },
+    { id: 'pill', name: '10 Pill field', expect: 'badge', el: () => $id('pill') },
+    { id: 'proton-search', name: '11 Webmail search', expect: 'none', el: () => $id('proton-search') },
+    { id: 'site-search', name: '12 Site search', expect: 'none', el: () => $id('site-search') },
+    { id: 'message', name: '13 Message textarea', expect: 'none', el: () => $id('message') },
+    { id: 'forward', name: '14 role=search filter', expect: 'none', el: () => $id('forward') },
+    { id: 'modal-user', name: '15 Focus-keeping pop-up', expect: 'badge', el: () => sr('modal')?.getElementById('modal-user'), prepare: () => $id('modal').open(), done: () => $id('modal').close() },
+    { id: 'wc-open', name: '16 Component', expect: 'badge', el: () => sr('wc-open')?.querySelector('input') },
+    { id: 'wc-slotted', name: '16 Slotted label', expect: 'badge', el: () => sr('wc-slotted')?.querySelector('input') },
+    { id: 'late-email', name: '17 Rendered late', expect: 'badge', el: () => $id('late-email') },
+    { id: 'srcdoc', name: '18 srcdoc iframe', expect: 'badge', el: () => frameDoc('srcdoc-frame')?.getElementById('f') },
+    { id: 'borderless', name: '19 Borderless', expect: 'badge', el: () => $id('borderless') },
+    { id: 'news-text', name: '19 Text newsletter', expect: 'badge', el: () => $id('news-text') },
+    { id: 'ph-only', name: '20 Placeholder only', expect: 'none', el: () => $id('ph-only') },
+    { id: 'label-only', name: '20 aria-label only', expect: 'none', el: () => $id('label-only') },
+    { id: 'labelledby', name: '20 aria-labelledby', expect: 'none', el: () => $id('labelledby') },
+    { id: 'email-search', name: '20 emailSearch', expect: 'none', el: () => $id('email-search') },
+    { id: 'combo', name: '20 Combobox', expect: 'none', el: () => $id('combo') },
+    { id: 'in-search-div', name: '20 In .site-search', expect: 'none', el: () => $id('in-search-div') },
+    { id: 'readonly', name: '20 Read-only', expect: 'none', el: () => $id('readonly') },
+    { id: 'disabled', name: '20 Disabled', expect: 'none', el: () => $id('disabled') },
+  ];
+  CHECKS.forEach(c => { c.state = 'untested'; });
+
+  // React field: the state line turns green when it matches a filled alias.
+  $id('controlled').addEventListener('input', e => { $id('controlled-state').parentElement.style.color = e.target.value.includes('@') ? 'var(--ok)' : ''; });
+
+  // Fill check: count input/change events on every check field.
+  const fills = new Map(), hooked = new WeakSet();
+  function hook(c, el) {
+    if (!el || hooked.has(el)) return;
+    hooked.add(el);
+    for (const type of ['input', 'change']) el.addEventListener(type, () => {
+      const f = fills.get(c.id) || { name: c.name, input: 0, change: 0 };
+      f[type]++; f.value = el.value; fills.set(c.id, f); renderFills();
+    });
+  }
+  setInterval(() => CHECKS.forEach(c => hook(c, c.el())), 500); // late fields, dialogs, iframes
+  function renderFills() {
+    $id('fill-rows').replaceChildren(...[...fills.values()].map(f => {
+      const tr = document.createElement('tr');
+      for (const [text, cls] of [[f.name], [f.value || '(empty)', 'v'], [f.input ? `yes (${f.input})` : 'no', f.input ? 'yes' : 'no'], [f.change ? `yes (${f.change})` : 'no', f.change ? 'yes' : 'no']]) {
+        const td = document.createElement('td'); td.textContent = text; if (cls) td.className = cls; tr.append(td);
+      }
+      return tr;
+    }));
+  }
+
+  // Where to put the FAIL reason line: under the field, or under the element that contains it (component, iframe).
+  const anchorFor = c => ({ s: $id('shadow-host'), f: $id('frame'), srcdoc: $id('srcdoc-frame'), 'modal-user': $id('open-modal'),
+    'dialog-email': $id('open-dialog'), 'wc-open': $id('wc-open'), 'wc-slotted': $id('wc-slotted') })[c.id] || c.el();
+
+  const LABEL = { untested: 'not run', pass: 'pass', fail: 'FAIL', skipped: 'not run (disabled)' };
+  function render() {
+    for (const c of CHECKS) {
+      document.querySelectorAll(`.st[data-check="${c.id}"]`).forEach(s => { s.textContent = LABEL[c.state]; s.className = 'st ' + c.state; });
+      const why = document.querySelector(`.why[data-why="${c.id}"]`);
+      if (c.state === 'fail') {
+        const line = why || Object.assign(document.createElement('div'), { className: 'why' });
+        line.dataset.why = c.id;
+        line.textContent = (c.expect === 'badge' ? 'expected a badge; ' : 'expected no badge; ') + (c.reason || 'no reason recorded (did the extension see this field?)');
+        if (!why) anchorFor(c)?.after(line);
+      } else why?.remove();
+    }
+    const counted = CHECKS.filter(c => c.state !== 'skipped'), passing = counted.filter(c => c.state === 'pass').length;
+    const failing = counted.filter(c => c.state === 'fail'), notRun = counted.filter(c => c.state === 'untested').length;
+    $id('sum-count').textContent = `${passing} of ${counted.length} passing`;
+    const detail = $id('sum-detail');
+    detail.replaceChildren();
+    if (failing.length) {
+      detail.append('Failing: ');
+      const MAX = 6; // keep the bar short; the pills on the page show the rest
+      failing.slice(0, MAX).forEach((c, i) => {
+        const a = Object.assign(document.createElement('a'), { textContent: c.name, href: '#' });
+        a.onclick = e => { e.preventDefault(); anchorFor(c)?.closest('.card, form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+        detail.append(...(i ? [', ', a] : [a]));
+      });
+      if (failing.length > MAX) detail.append(` and ${failing.length - MAX} more`);
+    }
+    if (notRun) detail.append(`${failing.length ? ' · ' : ''}${notRun} not run`);
+    if (!failing.length && !notRun) detail.append('All checks passed.');
+  }
+
+  // Deepest focused element, through shadow roots and same-origin iframes.
+  function deepActive() {
+    let el = document.activeElement;
+    for (;;) {
+      if (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+      else if (el?.tagName === 'IFRAME' && el.contentDocument?.activeElement && el.contentDocument.activeElement !== el.contentDocument.body) el = el.contentDocument.activeElement;
+      else return el;
+    }
+  }
+  // Two animation frames; Chrome pauses those in tabs that aren't on screen, so don't wait more than 100ms.
+  const frames2 = () => Promise.race([new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))), sleep(100)]);
+  async function waitFor(get, ms) { for (const end = Date.now() + ms; !get() && Date.now() < end;) await sleep(100); return get(); }
+
+  let running = false;
+  async function runAll() {
+    if (running) return;
+    running = true;
+    $id('run-all').disabled = true;
+    $id('sum-count').textContent = 'Running…';
+    // Chrome only sends focus events (which the extension listens for) while this page has keyboard focus,
+    // not while DevTools, the address bar or another window has it. Pause until the page is back.
+    async function pageFocus(msg) {
+      if (document.hasFocus()) return;
+      $id('sum-detail').textContent = msg;
+      await new Promise(r => addEventListener('focus', r, { once: true }));
+    }
+    await pageFocus('Click anywhere on this page to start the checks.');
+    const startFocus = deepActive(), startX = scrollX, startY = scrollY;
+    for (let i = 0; i < CHECKS.length; i++) {
+      const c = CHECKS[i];
+      await pageFocus('Paused: click this page to continue (checks need it to have focus).');
+      // After opening a dialog, give the page (and other extensions, e.g. password managers) a moment to settle,
+      // the way a person would; some pull focus out of a dialog that just opened.
+      if (c.prepare) { c.prepare(); await sleep(300); }
+      const el = await waitFor(c.el, c.id === 'late-email' ? 3000 : 1000);
+      if (!el) { c.state = 'untested'; c.done?.(); continue; }
+      if (el.disabled) { c.state = 'skipped'; c.done?.(); continue; }
+      el.removeAttribute('data-fmalias'); el.removeAttribute('data-fmalias-reason');
+      el.blur(); // an already-focused field (the autofocused Email) gets no new focus event otherwise
+      el.focus({ preventScroll: true });
+      await frames2(); await sleep(50);
+      const attached = el.getAttribute('data-fmalias') === 'attached';
+      c.reason = el.getAttribute('data-fmalias-reason') || '';
+      // Focus left the page mid-check: the extension never saw this field, so redo it rather than fail it.
+      if (!c.reason && !document.hasFocus()) { el.blur(); c.done?.(); i--; continue; }
+      c.state = attached === (c.expect === 'badge') ? 'pass' : 'fail';
+      el.blur();
+      c.done?.();
+      render();
+    }
+    // Put focus and scroll back where they were.
+    if (startFocus && startFocus !== document.body) startFocus.focus({ preventScroll: true });
+    scrollTo(startX, startY);
+    running = false;
+    $id('run-all').disabled = false;
+    render();
+  }
+  $id('run-all').onclick = runAll;
+  render();
+  addEventListener('load', () => setTimeout(runAll, 1000));
 </script>
 </body>
 </html>

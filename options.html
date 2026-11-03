@@ -8,6 +8,7 @@
   li { margin: 4px 0; }
   label { display: block; font-weight: 600; margin: 18px 0 6px; }
   .row { flex-wrap: wrap; }
+  .check { display: flex; gap: 8px; align-items: center; margin-top: 28px; font-weight: 400; color: var(--muted); }
 </style></head>
 <body>
   <h1>Aliases for Fastmail</h1>
@@ -26,6 +27,7 @@
     <button class="secondary" id="remove" hidden>Remove token</button>
   </div>
   <div class="status" id="status" role="status"></div>
+  <label class="check" for="debug"><input type="checkbox" id="debug"> Debug mode: log email-field detection to each page's console (F12 → Console, lines start with [FMAlias])</label>
   <script src="lib.js"></script>
   <script src="options.js"></script>
 </body></html>

@@ -100,6 +100,7 @@ async function handle(m, sender) {
     }
     if (m.type === 'create') return { alias: await create(sender.origin, m.prefix) };
     if (m.type === 'openOptions') return chrome.runtime.openOptionsPage(), {};
+    if (m.type === 'fieldFocused' && sender.tab) return chrome.storage.session.set({ ['frame:' + sender.tab.id]: sender.frameId }), {};
     throw fail('API', 'Not allowed.');
   }
   switch (m.type) {
@@ -111,6 +112,8 @@ async function handle(m, sender) {
       await saveToken(m.token.trim());
       session = cache = null;
       return {};
+    case 'lastFrame': { const k = 'frame:' + m.tabId; return { frameId: (await chrome.storage.session.get(k))[k] ?? null }; }
+    case 'setSiteHidden': await setSiteHidden(String(m.host), !!m.hidden); return {};
     case 'hasToken': return { has: !!(await loadToken()) };
     case 'test': return { count: (await list(await getSession(m.token || await getToken()))).length };
     case 'openOptions': return chrome.runtime.openOptionsPage(), {};
@@ -124,12 +127,29 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
 });
 
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
-  chrome.contextMenus.removeAll(() =>
-    chrome.contextMenus.create({ id: 'create-alias', title: 'Create Fastmail alias here', contexts: ['editable'] }));
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({ id: 'create-alias', title: 'Create Fastmail alias here', contexts: ['editable'] });
+    chrome.contextMenus.create({ id: 'hide-site', title: "Don't show the @ button on this site", contexts: ['editable'] });
+  });
   if (reason === 'install' && !(await loadToken())) chrome.runtime.openOptionsPage();
 });
 
+// Adds or removes a site from the "don't show the @ button" list (also used by the popup's switch).
+async function setSiteHidden(host, hidden) {
+  const key = siteKey(host), { hiddenSites = [] } = await chrome.storage.local.get('hiddenSites');
+  const next = hiddenSites.filter(s => s !== key).concat(hidden ? [key] : []);
+  await chrome.storage.local.set({ hiddenSites: next });
+}
+
 chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === 'hide-site') {
+    // about:blank and srcdoc frames have no address of their own: fall back to the page's.
+    const url = /^https?:/.test(info.frameUrl || '') ? info.frameUrl : info.pageUrl;
+    if (URL.canParse(url)) setSiteHidden(new URL(url).hostname, true);
+    return;
+  }
   // Fails silently on tabs opened before install (no content script yet).
   chrome.tabs.sendMessage(tab.id, { type: 'openPanel' }, { frameId: info.frameId }).catch(() => {});
 });
+
+chrome.tabs.onRemoved.addListener(tabId => { chrome.storage.session.remove('frame:' + tabId); });

@@ -26,3 +26,8 @@ assert.equal(baseDomain('evil.github.io'), 'evil.github.io');
 assert(!siteMatches({ forDomain: 'https://victim.github.io' }, 'evil.github.io'));
 assert(siteMatches({ forDomain: 'https://victim.github.io' }, 'www.victim.github.io'));
 console.log('ok security');
+const { siteKey, NO_BADGE_HOSTS } = require('./lib.js');
+assert.equal(siteKey('accounts.netflix.com'), 'netflix.com');
+assert.equal(siteKey('www.bbc.co.uk'), 'bbc.co.uk');
+assert(NO_BADGE_HOSTS.includes('mail.proton.me') && NO_BADGE_HOSTS.includes('app.fastmail.com'));
+console.log('ok sites');

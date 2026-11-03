@@ -37,3 +37,6 @@ $('test').onclick = async () => {
 };
 
 showSaved().catch(e => status(errorText(e), 'err'));
+
+chrome.storage.local.get('debug').then(({ debug }) => { $('debug').checked = !!debug; });
+$('debug').onchange = () => chrome.storage.local.set({ debug: $('debug').checked });

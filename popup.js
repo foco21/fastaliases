@@ -82,8 +82,9 @@ async function create() {
   try {
     const origin = host ? new URL(tab.url).origin : ''; // no website: alias isn't tied to a site and is only copied
     const { alias } = await send({ type: 'create', origin, prefix: sanitizePrefix($('prefix').value) });
-    // Only frames on the tab's own origin fill, so embedded third-party iframes never see the alias.
-    const filled = !!origin && await chrome.tabs.sendMessage(tab.id, { type: 'fill', email: alias.email, origin }).then(r => !!r?.filled, () => false);
+    // Fill only the frame where the user last had the badge, and only if it's on the tab's own origin.
+    const { frameId } = origin ? await send({ type: 'lastFrame', tabId: tab.id }) : {};
+    const filled = frameId != null && await chrome.tabs.sendMessage(tab.id, { type: 'fill', email: alias.email, origin }, { frameId }).then(r => !!r?.filled, () => false);
     const copied = await copy(alias.email);
     $('preview').classList.add('done');
     $('caption').textContent = 'Created · ' + (filled && copied ? 'filled + copied' : filled ? 'filled' : copied ? 'copied' : 'not copied');
@@ -92,6 +93,18 @@ async function create() {
   } catch (e) { showError(e); }
   $('create').disabled = false;
 }
+
+// "Show the @ button on this site" switch: off for sites the user hid, and locked off on webmail / password-manager sites.
+async function showSiteSwitch() {
+  if (!host) return;
+  const locked = NO_BADGE_HOSTS.includes(host);
+  const { hiddenSites = [] } = await chrome.storage.local.get('hiddenSites');
+  $('site-row').hidden = false;
+  $('site-toggle').checked = !locked && !hiddenSites.includes(siteKey(host));
+  $('site-toggle').disabled = locked;
+  if (locked) $('site-row-text').textContent = 'The @ button is always off on this site (right-click still works)';
+}
+$('site-toggle').onchange = () => send({ type: 'setSiteHidden', host, hidden: !$('site-toggle').checked }).catch(showError);
 
 $('create').onclick = create;
 $('settings').onclick = () => chrome.runtime.openOptionsPage();
@@ -105,6 +118,7 @@ $('prefix').onkeydown = e => { if (e.key === 'Enter') create(); };
   $('site').classList.toggle('none', !host);
   $('prefix').value = host ? defaultPrefix(host) : '';
   preview();
+  showSiteSwitch();
   $('prefix').focus();
   $('prefix').select();
   refresh();

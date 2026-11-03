@@ -15,6 +15,13 @@ function baseDomain(host) {
   return p.slice(-n).join('.');
 }
 
+// Webmail and password-manager apps: the inline badge never shows there (right-click still works). Add hosts here.
+const NO_BADGE_HOSTS = ['mail.proton.me', 'account.proton.me', 'app.fastmail.com', 'mail.google.com',
+  'outlook.live.com', 'outlook.office.com', 'vault.bitwarden.com'];
+
+// "Don't show on this site" is stored per base domain, so accounts.example.com and example.com share it.
+const siteKey = host => baseDomain(host);
+
 function sanitizePrefix(s) {
   return (s || '').toLowerCase().replace(/[-.\s]+/g, '_').replace(/[^a-z0-9_]/g, '').slice(0, 63);
 }
@@ -53,4 +60,4 @@ async function send(msg) {
   return r;
 }
 
-if (typeof module !== 'undefined') module.exports = { isExtensionSender, baseDomain, sanitizePrefix, defaultPrefix, siteMatches, errorText };
+if (typeof module !== 'undefined') module.exports = { NO_BADGE_HOSTS, siteKey, isExtensionSender, baseDomain, sanitizePrefix, defaultPrefix, siteMatches, errorText };

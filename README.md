@@ -16,7 +16,9 @@ Bitwarden is not integrated. The extension fills the email field, and when you s
 ## Use
 
 - **Inline:** focus an email field and click the **@** badge near its right edge. Edit the prefix and press Enter (or Create). Esc closes the panel. The alias is filled in (plus any empty "confirm email" field) and copied to the clipboard. Aliases you already made for this site are listed so you can reuse one.
-- **Right-click** any editable field and choose **Create Fastmail alias here**.
+- **Right-click** any editable field and choose **Create Fastmail alias here**. This works on every field, even where the badge doesn't show. **Don't show the @ button on this site** turns the badge off for that site; the popup has a switch to turn it back on.
+- **Where the badge shows:** each field gets a score and the badge shows at 3 or more: `type="email"` +3, `autocomplete="email"`/`"username"` +3, name/id is a word like email, mail, login or username +2, placeholder or label mentions email +1, and +1 each when the same form or pop-up has a password field, or a "confirm email" field / sign-up or log-in button. Search boxes never get it, and neither do webmail or password-manager sites (`NO_BADGE_HOSTS` in `lib.js`).
+- **Debug mode:** turn it on in the settings page, then open a page's console (F12) to see a `[FMAlias]` line for every field you click, with its score or why it was skipped.
 - **Toolbar popup:** create an alias for the current site. It fills the last email field you focused on the page, or else only copies it. It also lists this site's aliases and recent ones, with copy, turn off/on and delete buttons. Delete asks first, since mail to a deleted alias bounces.
 
 ## Notes
@@ -26,7 +28,7 @@ Bitwarden is not integrated. The extension fills the email field, and when you s
 - The site's base domain comes from a short built-in list of second-level suffixes (`co.uk`, `com.au`, …), plus common shared hosts (`github.io`, `vercel.app`, `netlify.app`, …) where each subdomain is its own site. It is not the full Public Suffix List, so a shared host missing from the list would group unrelated sites together.
 - Run `node test.js` to check the domain/prefix helpers.
 - Run `./build.sh` to make the Chrome Web Store zip in `dist/` (extension files only, no tests). Store listing text and images are in `store/`, the privacy policy in `PRIVACY.md`.
-- Manual test page: run `python3 -m http.server 8000 -d test-site` and open http://localhost:8000. It has every kind of email field the extension handles.
+- Manual test page: run `python3 -m http.server 8000 -d test-site` and open http://localhost:8000. It's a test bench: a second after it loads it focuses every case by itself and grades it against the "Expected" line, with **Run all checks** to repeat. Failures show the extension's reason under the field and as links in the bar at the top. It reads two attributes the extension sets on every input it evaluates: `data-fmalias` (`attached` or `skipped`) and `data-fmalias-reason` (the score breakdown or exclusion). To open it as a local file (`file:///…/test-site/index.html`) instead, first turn on **Allow access to file URLs** for the extension in `chrome://extensions` (Details page); Chrome doesn't run extensions on local files without it.
 - The popup uses IBM Plex Sans and Mono, bundled in `fonts/` (SIL Open Font License, see `fonts/OFL.txt`) so it never loads fonts from the web.
 
 ## License

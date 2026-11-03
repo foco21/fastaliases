@@ -1,5 +1,4 @@
 (() => {
-  const EMAIL_RE = /e-?mail/i;
   const CONFIRM_RE = /confirm|repeat|verif|again|retype|re-?enter/i;
   let field = null;     // field the badge/panel is attached to
   let lastField = null; // last focused email field, filled from the toolbar popup
@@ -62,32 +61,116 @@
   const $ = s => root.querySelector(s);
   const ring = $('.ring'), badge = $('.badge'), panel = $('.panel'), prefixIn = $('.prefix'), createBtn = $('.create'), msg = $('.msg'), existing = $('.existing');
 
-  // Visible text of a label, following <slot>s: Reddit passes "Email or username" into its input component through one,
-  // and plain textContent sees an empty slot.
-  const textOf = n => n.nodeType === Node.TEXT_NODE ? n.data :
-    [...(n.localName === 'slot' ? n.assignedNodes({ flatten: true }) : n.childNodes)].map(textOf).join(' ');
+  // --- Which fields get the badge ---------------------------------------------------------------
+  const SEARCH_WORD_RE = /search|find|filter|query/i;
+  // Whole words in name/id after splitting camelCase: "user_email", "userEmail", "login" match; "gmail", "mailingList" don't.
+  const ACCOUNT_ID_RE = /(^|[^a-z0-9])(e[-_]?mail|mail|login|user[-_ ]?name)([^a-z0-9]|$)/;
+  const SUBMIT_RE = /sign ?up|register|create (an |your )?account|join|continue|log ?in|sign ?in/i;
+  const words = s => (s || '').replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
+  const up = n => n.parentElement || n.getRootNode().host || null; // parent, stepping out of shadow roots
+  const ancestors = el => { const out = []; for (let n = up(el); n; n = up(n)) out.push(n); return out; };
+  const fieldText = el => [el.name, el.id, el.placeholder, el.getAttribute('aria-label')].join(' ');
 
-  function isEmailField(el) {
-    if (!(el instanceof HTMLInputElement) || el.disabled || el.readOnly) return false;
-    if (el.type === 'email') return true;
-    if (el.type !== 'text') return false;
-    const labelledBy = (el.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean).map(id => el.getRootNode().getElementById?.(id)).filter(Boolean).map(textOf);
-    const hints = [el.name, el.id, el.autocomplete, el.placeholder, el.getAttribute('aria-label'), ...labelledBy, ...[...(el.labels || [])].map(textOf)];
-    // Web components (e.g. Reddit's <faceplate-text-input label="Email or username">) keep the label on the host element.
-    const host = el.getRootNode().host;
-    if (host) hints.push(...['name', 'id', 'label', 'placeholder', 'aria-label'].map(a => host.getAttribute(a)));
-    return hints.some(v => v && EMAIL_RE.test(v));
+  function isSearchField(el) {
+    if (el.type === 'search' || /^(searchbox|combobox)$/.test(el.getAttribute('role'))) return true;
+    if (SEARCH_WORD_RE.test(fieldText(el))) return true;
+    return ancestors(el).some(n => n !== document.body && n !== document.documentElement &&
+      (n.getAttribute('role') === 'search' || /search/i.test([n.id, n.getAttribute('class'), n.getAttribute('name')].join(' '))));
   }
 
-  // Follow focus into shadow roots, including closed ones that composedPath() hides (extensions may open them, as Bitwarden does).
+  const LABEL_EMAIL_RE = /e-?mail/i;
+  const autocompleteOf = el => (el.getAttribute('autocomplete') || '').toLowerCase().split(/\s+/);
+  const idWord = el => ACCOUNT_ID_RE.test(words(el.name)) || ACCOUNT_ID_RE.test(words(el.id));
+  // Placeholder, aria-label, <label> and aria-labelledby text.
+  function labelText(el) {
+    const root = el.getRootNode(), ids = (el.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean);
+    return [el.placeholder, el.getAttribute('aria-label'), ...[...(el.labels || [])].map(l => l.textContent),
+      ...ids.map(id => root.getElementById?.(id)?.textContent)].join(' ');
+  }
+  // Any sign this input holds an email address; used for "confirm email" fields.
+  const emailish = el => el.type === 'email' || autocompleteOf(el).includes('email') || idWord(el) || LABEL_EMAIL_RE.test(labelText(el));
+
+  // Every element under `root`, including inside shadow roots (open or closed), skipping our own layer.
+  function* deepElements(root) {
+    const stack = [root];
+    while (stack.length) for (const c of stack.pop().children) {
+      if (c === host) continue;
+      yield c;
+      stack.push(c);
+      const sr = shadowOf(c);
+      if (sr) stack.push(sr);
+    }
+  }
+
+  // What else is in the field's form or pop-up. A field in neither gets no bonus (scanning the whole page would
+  // hand every loose field on a page with any login form the +2).
+  const formScope = el => el.form || ancestors(el).find(n => n.matches('form, dialog, [aria-modal="true"]'));
+  function formSignals(el) {
+    const scope = formScope(el);
+    let password = false, account = false;
+    if (!scope) return { password, account };
+    for (const n of deepElements(scope)) {
+      if (n === el) continue;
+      if (n instanceof HTMLInputElement) {
+        if (n.type === 'password') password = true;
+        else if (n.type === 'submit' ? SUBMIT_RE.test(n.value) : CONFIRM_RE.test(fieldText(n)) && emailish(n)) account = true;
+      } else if ((n.localName === 'button' || n.getAttribute('role') === 'button') && SUBMIT_RE.test(n.textContent)) account = true;
+      if (password && account) break;
+    }
+    return { password, account };
+  }
+
+  // Sites where the badge stays off. Local files (file://) have no web origin but are allowed.
+  const pageHost = URL.canParse(self.origin) ? new URL(self.origin).hostname : '';
+  let hiddenSites = [], debug = false;
+
+  // Returns { skip: reason } or { score }. The badge shows at score >= 3.
+  function assess(el) {
+    if (el.disabled || el.readOnly) return { skip: 'disabled or read-only' };
+    if (isSearchField(el)) return { skip: 'search' };
+    if (el.type !== 'email' && el.type !== 'text') return { skip: 'type=' + el.type };
+    if (NO_BADGE_HOSTS.includes(pageHost)) return { skip: 'webmail/password-manager site' };
+    if (pageHost && hiddenSites.includes(siteKey(pageHost))) return { skip: 'turned off for this site' };
+    const ac = autocompleteOf(el), f = formSignals(el), why = [];
+    let score = 0;
+    const add = (n, reason) => { score += n; why.push(`${reason}+${n}`); };
+    if (el.type === 'email') add(3, 'type');
+    if (ac.includes('email') || ac.includes('username')) add(3, 'autocomplete');
+    if (idWord(el)) add(2, 'name');
+    if (LABEL_EMAIL_RE.test(labelText(el))) add(1, 'placeholder/label');
+    if (f.password) add(1, 'password');
+    if (f.account) add(1, 'signup/confirm');
+    return { score, why };
+  }
+
+  // Every input or textarea we look at gets data-fmalias="attached"/"skipped" and data-fmalias-reason,
+  // so test pages can read the decision (show() sets "attached" when the badge actually appears).
+  function wantsBadge(el) {
+    const isInput = el instanceof HTMLInputElement;
+    if (!isInput && !(el instanceof HTMLTextAreaElement)) return false;
+    const a = isInput ? assess(el) : { skip: 'not an email or text input' }, yes = !a.skip && a.score >= 3;
+    const reason = a.skip ? `excluded: ${a.skip}` : `score=${a.score}: ${a.why.join(', ') || 'no signals'}${yes ? '' : ' (needs 3)'}`;
+    el.setAttribute('data-fmalias-reason', reason);
+    if (!yes) el.setAttribute('data-fmalias', 'skipped');
+    if (debug) console.log(`[FMAlias] ${el.localName}${el.id ? '#' + el.id : el.name ? `[name="${el.name}"]` : ''} ${reason} → ${yes ? 'badge' : 'no badge'}`);
+    return yes;
+  }
+  // When the badge goes away, drop "attached" (the reason stays for test pages).
+  const unmark = el => { if (el?.getAttribute('data-fmalias') === 'attached') el.removeAttribute('data-fmalias'); };
+
+  // Shadow root of an element, open or closed (extensions may open closed ones, as Bitwarden does).
+  // chrome.dom.openOrClosedShadowRoot throws on anything that isn't an HTML element, e.g. the SVG icons all over Reddit.
+  const shadowOf = n => n instanceof HTMLElement ? chrome.dom?.openOrClosedShadowRoot?.(n) ?? n.shadowRoot : null;
+
+  // Follow focus into shadow roots, including closed ones that composedPath() hides.
   function deepTarget(el) {
-    for (let r; el && (r = chrome.dom?.openOrClosedShadowRoot?.(el) ?? el.shadowRoot) && r.activeElement;) el = r.activeElement;
+    for (let r; el && (r = shadowOf(el)) && r.activeElement;) el = r.activeElement;
     return el;
   }
 
   // Tiny, pill-shaped or borderless fields get the plain badge: the traced outline would look wrong on them.
   function plainLook(r, s) {
-    return r.height < 32 || r.width < 120 || radius >= r.height / 2 - 2 || !parseFloat(s.borderTopWidth) ||
+    return r.height <= 32 || r.width < 120 || radius >= r.height / 2 - 2 || !parseFloat(s.borderTopWidth) ||
       s.borderTopStyle === 'none' || /^transparent$|rgba\(.*,\s*0\)$/.test(s.borderTopColor);
   }
 
@@ -142,6 +225,7 @@
   function show(el) {
     if (el !== field) {
       restoreBorder();
+      unmark(field);
       field = el;
       const s = getComputedStyle(el);
       radius = parseFloat(s.borderTopLeftRadius) || 0;
@@ -154,6 +238,7 @@
     }
     const parent = containerFor(el);
     if (host.parentNode !== parent) parent.appendChild(host);
+    el.setAttribute('data-fmalias', 'attached'); // lets test pages see which field has the badge
     badge.hidden = false;
     ring.hidden = !bubble;
     badge.classList.toggle('ghost', bubble);
@@ -177,6 +262,7 @@
 
   function hide() { // detached when idle so pages can't spot the extension
     restoreBorder();
+    unmark(field);
     panel.hidden = badge.hidden = ring.hidden = true;
     field = null;
     host.remove();
@@ -251,9 +337,11 @@
 
   function fill(el, email) {
     setValue(el, email);
-    for (const o of (el.form || el.getRootNode()).querySelectorAll('input')) {
-      const attrs = [o.name, o.id, o.placeholder, o.getAttribute('aria-label')].join(' ');
-      if (o !== el && !o.value && isEmailField(o) && CONFIRM_RE.test(attrs)) setValue(o, email);
+    // Also fill an empty "confirm email" field, but only in the same form or pop-up: never elsewhere on the page.
+    const scope = formScope(el);
+    if (scope) for (const o of deepElements(scope)) {
+      if (o !== el && o instanceof HTMLInputElement && !o.value && !o.disabled && !o.readOnly &&
+        emailish(o) && CONFIRM_RE.test(fieldText(o))) setValue(o, email);
     }
   }
 
@@ -275,19 +363,49 @@
 
   const ours = e => e.composedPath().includes(host);
 
+  // The popup fills the field the user last had the badge on; the background remembers which frame that was.
+  function noteField(el) {
+    lastField = el;
+    try { chrome.runtime.sendMessage({ type: 'fieldFocused' }).catch(() => {}); } catch {}
+  }
+
   function track(el) {
     if (el !== field) hide();
-    if (isEmailField(el)) { lastField = el; show(el); }
+    if (wantsBadge(el)) { noteField(el); show(el); }
   }
-  addEventListener('focusin', e => { if (!ours(e)) track(deepTarget(e.composedPath()[0])); }, true);
+  // Focus moving between two elements inside one shadow root (Close button -> field in a pop-up) never reaches window,
+  // so every shadow root focus has entered gets its own listener too. lastFocus drops the duplicate when both fire.
+  const watchedRoots = new WeakSet();
+  let lastFocus = null;
+  function onFocusIn(e) {
+    if (e === lastFocus || ours(e)) return;
+    lastFocus = e;
+    const el = deepTarget(e.composedPath()[0]);
+    for (let n = el; n; n = up(n)) {
+      const r = n.getRootNode();
+      if (r instanceof ShadowRoot && !watchedRoots.has(r)) { watchedRoots.add(r); r.addEventListener('focusin', onFocusIn, true); }
+    }
+    track(el);
+  }
+  addEventListener('focusin', onFocusIn, true);
   // Clicking a field that already has focus fires no focusin (e.g. after the badge was hidden by a window blur).
   addEventListener('click', e => {
     const el = e.composedPath()[0];
     if (!ours(e) && badge.hidden && el instanceof Element && el.matches(':focus')) track(deepTarget(el));
   }, true);
   // Signup pages often autofocus the email field before this script loads.
-  const active = deepTarget(document.activeElement);
-  if (active) track(active);
+  chrome.storage.local.get(['hiddenSites', 'debug']).then(({ hiddenSites: h = [], debug: d = false }) => {
+    hiddenSites = h;
+    debug = d;
+    const active = deepTarget(document.activeElement);
+    if (active) track(active);
+  }).catch(() => {});
+  chrome.storage.onChanged.addListener(c => {
+    if (c.debug) debug = !!c.debug.newValue;
+    if (!c.hiddenSites) return;
+    hiddenSites = c.hiddenSites.newValue || [];
+    if (field && panel.hidden && !wantsBadge(field)) hide();
+  });
   addEventListener('focusout', e => { if (!ours(e) && panel.hidden) hide(); }, true);
   addEventListener('mousedown', e => {
     if (panel.hidden || ours(e)) return;
@@ -301,7 +419,7 @@
     if (m.type === 'openPanel' && (ctxTarget instanceof HTMLInputElement || ctxTarget instanceof HTMLTextAreaElement)) {
       const el = ctxTarget;
       el.focus();
-      lastField = el;
+      noteField(el);
       show(el);
       openPanel();
     } else if (m.type === 'fill' && m.origin === self.origin && lastField?.isConnected) {
