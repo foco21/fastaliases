@@ -1,0 +1,28 @@
+// node test.js
+const assert = require('assert');
+const { baseDomain, sanitizePrefix, defaultPrefix, siteMatches } = require('./lib.js');
+assert.equal(baseDomain('accounts.netflix.com'), 'netflix.com');
+assert.equal(baseDomain('www.bbc.co.uk'), 'bbc.co.uk');
+assert.equal(baseDomain('shop.example.com.au'), 'example.com.au');
+assert.equal(baseDomain('t.co'), 't.co');
+assert.equal(baseDomain('localhost'), 'localhost');
+assert.equal(baseDomain('192.168.1.1'), '192.168.1.1');
+assert.equal(defaultPrefix('accounts.netflix.com'), 'netflix');
+assert.equal(defaultPrefix('login.my-bank.co.uk'), 'my_bank');
+assert.equal(sanitizePrefix('Foo.Bar-Baz Qux!'), 'foo_bar_baz_qux');
+assert.equal(sanitizePrefix('x'.repeat(80)).length, 63);
+assert(siteMatches({ forDomain: 'https://www.netflix.com' }, 'accounts.netflix.com'));
+assert(!siteMatches({ forDomain: 'https://netflix.evil.com' }, 'netflix.com'));
+assert(!siteMatches({ forDomain: '' }, 'netflix.com'));
+assert(siteMatches({ forDomain: 'bbc.co.uk' }, 'www.bbc.co.uk'));
+console.log('ok');
+const { isExtensionSender } = require('./lib.js');
+const ext = 'chrome-extension://abc';
+assert(isExtensionSender({ url: ext + '/options.html' }, ext));
+assert(!isExtensionSender({ url: 'https://evil.com/' }, ext));
+assert(!isExtensionSender({ url: 'chrome-extension://abcd/x.html' }, ext));
+assert(!isExtensionSender({}, ext));
+assert.equal(baseDomain('evil.github.io'), 'evil.github.io');
+assert(!siteMatches({ forDomain: 'https://victim.github.io' }, 'evil.github.io'));
+assert(siteMatches({ forDomain: 'https://victim.github.io' }, 'www.victim.github.io'));
+console.log('ok security');

@@ -1,0 +1,12 @@
+<!-- Source for the PNG icons: the same @ logo as the inline bubble (content.js LOGO), light colors.
+     Regenerate: for n in 16 32 48 128; do rsvg-convert -w $n -h $n icons/logo.svg -o icons/$n.png; done -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <circle cx="24" cy="24" r="22.5" fill="#FFFFFF" stroke="#0067B9" stroke-width="3"/>
+  <circle cx="24" cy="24" r="21" fill="rgba(105,179,231,.14)"/>
+  <g transform="translate(6.6 6.6) scale(1.45)" stroke-width="2.07" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 12a9 9 0 1 0-5.5 8.28C17.34 19.5 22.74 21.96 23.88 20.32" stroke="#0067B9"/>
+    <path d="M16 9v4.5a2.5 2.5 0 0 0 5 0V12" stroke="#69B3E7"/>
+    <path d="M14.83 9.17A4 4 0 0 0 9.17 14.83Z" fill="#FFC107" stroke="none"/>
+    <path d="M9.17 14.83A4 4 0 0 0 14.83 9.17Z" fill="#0067B9" stroke="none"/>
+  </g>
+</svg>

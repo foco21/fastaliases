@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Fastmail Alias",
+  "version": "1.0.0",
+  "description": "Create Fastmail Masked Email aliases with custom prefixes and fill them into signup forms.",
+  "permissions": ["storage", "activeTab", "contextMenus"],
+  "host_permissions": ["https://api.fastmail.com/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "js": ["lib.js", "content.js"],
+    "all_frames": true,
+    "match_origin_as_fallback": true,
+    "run_at": "document_idle"
+  }],
+  "action": { "default_popup": "popup.html", "default_icon": { "16": "icons/16.png", "32": "icons/32.png" } },
+  "options_page": "options.html",
+  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" }
+}
