@@ -11,7 +11,7 @@ Aliases for Fastmail is a browser extension that creates Fastmail Masked Email a
 
 ## Where data goes
 
-- The extension talks to one server only: **api.fastmail.com**, using your token, to list, create, turn on and turn off your masked email addresses.
+- The extension talks to one server only: **api.fastmail.com**, using your token, to list, create, turn on, turn off and delete your masked email addresses.
 - Nothing is sent to the developer or to any other server. The extension has no analytics, no tracking, no ads and no remote code. The fonts and images it uses are bundled inside it.
 
 ## Web pages you visit

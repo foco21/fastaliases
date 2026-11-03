@@ -17,7 +17,7 @@ Bitwarden is not integrated. The extension fills the email field, and when you s
 
 - **Inline:** focus an email field and click the **@** badge near its right edge. Edit the prefix and press Enter (or Create). Esc closes the panel. The alias is filled in (plus any empty "confirm email" field) and copied to the clipboard. Aliases you already made for this site are listed so you can reuse one.
 - **Right-click** any editable field and choose **Create Fastmail alias here**.
-- **Toolbar popup:** create an alias for the current site. It fills the last email field you focused on the page, or else only copies it. It also lists this site's aliases and recent ones, with copy and disable/enable buttons.
+- **Toolbar popup:** create an alias for the current site. It fills the last email field you focused on the page, or else only copies it. It also lists this site's aliases and recent ones, with copy, turn off/on and delete buttons. Delete asks first, since mail to a deleted alias bounces.
 
 ## Notes
 

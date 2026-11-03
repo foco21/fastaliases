@@ -18,6 +18,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { width: 360px; margin: 0; padding: 12px; background: var(--bg); color: var(--fg); font: 14px/1.4 "IBM Plex Sans", system-ui, sans-serif; }
 button { font: inherit; color: inherit; cursor: pointer; }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; }
@@ -61,4 +62,8 @@ ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-colum
 .icon:hover { background: var(--hover); color: var(--fg); }
 .icon:disabled { opacity: .5; cursor: default; }
 .icon svg { width: 16px; height: 16px; }
+.alias.confirming { border-color: var(--red); }
+.confirm { flex: none; height: 30px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); font-size: 13px; font-weight: 600; }
+.confirm.yes { border-color: var(--red); background: var(--red); color: #fff; }
+.confirm:disabled { opacity: .6; cursor: default; }
 .empty { margin: 4px 2px; color: var(--muted); font-size: 13px; }

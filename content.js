@@ -6,7 +6,7 @@
   let ctxTarget = null; // last right-clicked element, for the context menu
   let bubble = false;   // true: outline + bubble overlay; false: plain round badge
   let radius = 0;       // field's own corner radius, read before we hide its border
-  let savedStyle = null, drawn = '';
+  let savedStyle = null, drawn = '', shift = { x: 0, y: 0 };
   const HIDDEN_STYLE = { 'border-color': 'transparent', 'outline-color': 'transparent', 'box-shadow': 'none' }; // the overlay replaces the field's own outline and focus ring
 
   // Colors come from the --fm-* variables below so the bubble follows the light/dark theme.
@@ -62,12 +62,17 @@
   const $ = s => root.querySelector(s);
   const ring = $('.ring'), badge = $('.badge'), panel = $('.panel'), prefixIn = $('.prefix'), createBtn = $('.create'), msg = $('.msg'), existing = $('.existing');
 
+  // Visible text of a label, following <slot>s: Reddit passes "Email or username" into its input component through one,
+  // and plain textContent sees an empty slot.
+  const textOf = n => n.nodeType === Node.TEXT_NODE ? n.data :
+    [...(n.localName === 'slot' ? n.assignedNodes({ flatten: true }) : n.childNodes)].map(textOf).join(' ');
+
   function isEmailField(el) {
     if (!(el instanceof HTMLInputElement) || el.disabled || el.readOnly) return false;
     if (el.type === 'email') return true;
     if (el.type !== 'text') return false;
-    const labelledBy = (el.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean).map(id => el.getRootNode().getElementById?.(id)?.textContent);
-    const hints = [el.name, el.id, el.autocomplete, el.placeholder, el.getAttribute('aria-label'), ...labelledBy, ...[...(el.labels || [])].map(l => l.textContent)];
+    const labelledBy = (el.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean).map(id => el.getRootNode().getElementById?.(id)).filter(Boolean).map(textOf);
+    const hints = [el.name, el.id, el.autocomplete, el.placeholder, el.getAttribute('aria-label'), ...labelledBy, ...[...(el.labels || [])].map(textOf)];
     // Web components (e.g. Reddit's <faceplate-text-input label="Email or username">) keep the label on the host element.
     const host = el.getRootNode().host;
     if (host) hints.push(...['name', 'id', 'label', 'placeholder', 'aria-label'].map(a => host.getAttribute(a)));
@@ -107,6 +112,11 @@
   function place() {
     const r = field?.getBoundingClientRect();
     if (!field?.isConnected || !r.width) return hide();
+    // Inside a pop-up centered with a CSS transform, "fixed" means fixed to the pop-up, not the screen.
+    // Our layer is translated back onto the screen's corner; any translate also makes it the reference box for our parts.
+    const h0 = host.getBoundingClientRect();
+    shift = { x: shift.x - h0.left, y: shift.y - h0.top };
+    host.style.translate = `${shift.x}px ${shift.y}px`;
     let size, x, y;
     if (bubble) {
       const key = r.width + 'x' + r.height;
@@ -142,11 +152,22 @@
         for (const k in HIDDEN_STYLE) el.style.setProperty(k, HIDDEN_STYLE[k], 'important');
       }
     }
-    if (!host.isConnected) document.documentElement.appendChild(host);
+    const parent = containerFor(el);
+    if (host.parentNode !== parent) parent.appendChild(host);
     badge.hidden = false;
     ring.hidden = !bubble;
     badge.classList.toggle('ghost', bubble);
     place();
+  }
+
+  // Pop-up windows (aria-modal or <dialog>) pull focus back or make the rest of the page unclickable,
+  // so our layer has to live inside the pop-up the field is in (Reddit's login window does this).
+  function containerFor(el) {
+    for (let n = el; n; n = n.getRootNode().host) {
+      const m = n.closest('dialog[open], [aria-modal="true"]');
+      if (m) return m;
+    }
+    return document.documentElement;
   }
 
   function restoreBorder() {
@@ -172,7 +193,7 @@
   function onTop(el) {
     const s = getComputedStyle(host), r = el.getBoundingClientRect();
     return s.opacity === '1' && s.visibility === 'visible' && s.filter === 'none' && s.mixBlendMode === 'normal' &&
-      document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === host;
+      host.getRootNode().elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === host;
   }
 
   function showError(e) {
@@ -252,22 +273,24 @@
     if (e.key === 'Escape') { e.preventDefault(); closePanel(); }
   });
 
+  const ours = e => e.composedPath().includes(host);
+
   function track(el) {
     if (el !== field) hide();
     if (isEmailField(el)) { lastField = el; show(el); }
   }
-  addEventListener('focusin', e => { if (e.target !== host) track(deepTarget(e.composedPath()[0])); }, true);
+  addEventListener('focusin', e => { if (!ours(e)) track(deepTarget(e.composedPath()[0])); }, true);
   // Clicking a field that already has focus fires no focusin (e.g. after the badge was hidden by a window blur).
   addEventListener('click', e => {
     const el = e.composedPath()[0];
-    if (e.target !== host && badge.hidden && el instanceof Element && el.matches(':focus')) track(deepTarget(el));
+    if (!ours(e) && badge.hidden && el instanceof Element && el.matches(':focus')) track(deepTarget(el));
   }, true);
   // Signup pages often autofocus the email field before this script loads.
   const active = deepTarget(document.activeElement);
   if (active) track(active);
-  addEventListener('focusout', e => { if (e.target !== host && panel.hidden) hide(); }, true);
+  addEventListener('focusout', e => { if (!ours(e) && panel.hidden) hide(); }, true);
   addEventListener('mousedown', e => {
-    if (panel.hidden || e.target === host) return;
+    if (panel.hidden || ours(e)) return;
     if (e.composedPath()[0] === field) panel.hidden = true; else hide();
   }, true);
   addEventListener('scroll', () => field && place(), { capture: true, passive: true });

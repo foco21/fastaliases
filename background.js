@@ -84,7 +84,7 @@ async function create(origin, prefix) {
 }
 
 async function setState(id, state) {
-  if (!['enabled', 'disabled'].includes(state) || typeof id !== 'string') throw fail('API', 'Bad request.');
+  if (!['enabled', 'disabled', 'deleted'].includes(state) || typeof id !== 'string') throw fail('API', 'Bad request.');
   const res = await call('MaskedEmail/set', { update: { [id]: { state } } });
   cache = null;
   if (res.notUpdated?.[id]) throw setError(res.notUpdated[id]);

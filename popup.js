@@ -2,6 +2,7 @@ const $ = id => document.getElementById(id);
 const ICON = {
   copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
   power: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>',
 };
 let tab, host = '', domain = 'fastmail.com';
@@ -41,7 +42,26 @@ function aliasRow(a, here) {
   li.append(el('span', { className: 'dot', ariaHidden: 'true' }), el('span', { className: 'email mono', textContent: a.email }));
   if (here) li.append(el('span', { className: 'tag here', textContent: 'This site' }));
   if (off) li.append(el('span', { className: 'tag off', textContent: 'Off' }));
-  li.append(copyBtn, toggle);
+  // Deleting makes mail to the address bounce, and Fastmail doesn't document an undo, so it asks first.
+  const del = el('button', { className: 'icon', innerHTML: ICON.trash, title: 'Delete', ariaLabel: 'Delete ' + a.email });
+  del.onclick = () => {
+    const rest = [...li.querySelectorAll('.tag, .icon')];
+    const yes = el('button', { className: 'confirm yes', textContent: 'Delete' });
+    const no = el('button', { className: 'confirm', textContent: 'Cancel' });
+    const cancel = () => { yes.remove(); no.remove(); rest.forEach(n => { n.hidden = false; }); li.classList.remove('confirming'); status(); del.focus(); };
+    rest.forEach(n => { n.hidden = true; });
+    li.classList.add('confirming');
+    status(`Delete ${a.email}? Mail sent to it will bounce, and this may not be undoable. To just stop mail, turn it off instead.`);
+    no.onclick = cancel;
+    yes.onclick = async () => {
+      yes.disabled = no.disabled = true;
+      try { await send({ type: 'setState', id: a.id, state: 'deleted' }); status(); await refresh(); }
+      catch (e) { cancel(); showError(e); }
+    };
+    li.append(yes, no);
+    no.focus(); // safe default for Enter
+  };
+  li.append(copyBtn, toggle, del);
   return li;
 }
 
