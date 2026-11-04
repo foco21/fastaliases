@@ -1,6 +1,10 @@
-# Aliases for Fastmail
-https://github.com/foco21/fastaliases/blob/main/icons/logo.svg
-*An independent project, not affiliated with or endorsed by Fastmail.*
+<p align="center">
+  <img src="icons/logo.svg" width="120" alt="Aliases for Fastmail logo">
+</p>
+
+<h1 align="center">Aliases for Fastmail</h1>
+
+<p align="center"><em>An independent project, not affiliated with or endorsed by Fastmail.</em></p>
 
 Chrome extension (Manifest V3, plain JS, no build step) that creates Fastmail Masked Email aliases with a custom prefix (`netflix.k3j9x@fastmail.com`) and fills them into signup forms.
 
