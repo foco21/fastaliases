@@ -6,6 +6,9 @@
   let bubble = false;   // true: outline + bubble overlay; false: plain round badge
   let radius = 0;       // field's own corner radius, read before we hide its border
   let savedStyle = null, drawn = '', shift = { x: 0, y: 0 };
+  let bubbleOk = false; // field suits the traced outline (bubble may still fall back if there's no room)
+  let neighbor = null;  // another extension's inline icon at the field's right end, in field coordinates
+  let rechecks = [];
   const HIDDEN_STYLE = { 'border-color': 'transparent', 'outline-color': 'transparent', 'box-shadow': 'none' }; // the overlay replaces the field's own outline and focus ring
 
   // Colors come from the --fm-* variables below so the bubble follows the light/dark theme.
@@ -156,7 +159,7 @@
     return yes;
   }
   // When the badge goes away, drop "attached" (the reason stays for test pages).
-  const unmark = el => { if (el?.getAttribute('data-fmalias') === 'attached') el.removeAttribute('data-fmalias'); };
+  const unmark = el => { if (el?.getAttribute('data-fmalias') === 'attached') el.removeAttribute('data-fmalias'); el?.removeAttribute('data-fmalias-neighbor'); };
 
   // Shadow root of an element, open or closed (extensions may open closed ones, as Bitwarden does).
   // chrome.dom.openOrClosedShadowRoot throws on anything that isn't an HTML element, e.g. the SVG icons all over Reddit.
@@ -177,7 +180,63 @@
   // Field outline (in field coordinates) that pinches at the right and flows into a circle of radius R.
   // For a 316x44 field with radius 8 this is exactly the reference design, shifted up 7px.
   // Bubble circle in field coordinates: mostly over the field's right end, poking out a little.
-  const circle = (w, h) => { const R = Math.round(0.45 * h); return { R, cx: w - R * 0.25, cy: h / 2 }; };
+  // With another extension's icon there, the bubble moves outside the field, just right of that icon.
+  const circle = (w, h) => {
+    const R = Math.round(0.45 * h);
+    return { R, cx: neighbor ? Math.max(w + R * 0.6, neighbor.right + R + 6) : w - R * 0.25, cy: h / 2 };
+  };
+
+  // --- Other extensions' inline icons (password managers) -----------------------------------------
+  // Matched against tag name, id, class and extension-iframe src (the store IDs). Colors are their brand blues/reds.
+  const BRANDS = [
+    ['Bitwarden', /bitwarden|bit-inline-menu|nngceckbapebfimnlniiiahkandclblb/, '#175DDC'],
+    ['1Password', /com-1password|onepassword|1password|aeblfdkhhhdcdjpifhhbdiojplfjncoa/, '#0572EC'],
+    ['LastPass', /(^|\s)lp-|lastpass|hdokiejnpimakedhajhdlcegeplioahd/, '#D32D27'],
+    ['Proton Pass', /protonpass|proton-pass|ghmbeldphafepmbegfdlkpapadhbakde/, '#6D4AFF'],
+    ['Dashlane', /dashlane|fdjamakpfbbddfjaooikfcpapjohcfmg/, '#0E353D'],
+  ];
+  const KNOWN_SEL = ['bitwarden', 'bit-inline-menu', '1password', 'onepassword', 'lastpass', 'protonpass', 'dashlane']
+    .map(w => `[id*="${w}" i],[class*="${w}" i]`).join() + ',[class^="lp-"],[class*=" lp-"],iframe[src^="chrome-extension:"]';
+  const idText = n => {
+    const fr = n.localName === 'iframe' ? n : shadowOf(n)?.querySelector('iframe');
+    return [n.localName, n.id, n.getAttribute?.('class'), fr?.src].join(' ').toLowerCase();
+  };
+  // Icon-sized box of an element, or of the iframe inside its shadow root (Bitwarden draws its button in one).
+  const iconRect = n => {
+    for (const m of [n, shadowOf(n)?.querySelector('iframe')]) {
+      const r = m?.getBoundingClientRect();
+      if (r?.width && r.height && r.width <= 64 && r.height <= 64) return r;
+    }
+    return null;
+  };
+  function findNeighbor(el) {
+    const r = el.getBoundingClientRect(), skip = new Set([el, host, ...ancestors(el)]), seen = new Set(), found = [];
+    const consider = (n, hitTest) => {
+      if (seen.has(n) || skip.has(n)) return;
+      seen.add(n);
+      const ir = iconRect(n);
+      if (!ir || ir.right <= r.right - 48 || ir.left >= r.right + 48 || ir.bottom <= r.top || ir.top >= r.bottom) return;
+      let brand = null;
+      for (let m = n; m && !skip.has(m) && !brand; m = up(m)) {
+        const t = idText(m);
+        brand = BRANDS.find(b => b[1].test(t)) || (/ (chrome|moz)-extension:/.test(t) ? ['extension', null, '#929DAA'] : null);
+      }
+      // Hit-tested elements count even unnamed (an icon is sitting there); the DOM scan only finds named ones.
+      if (brand || hitTest) found.push({ name: brand?.[0] || 'unknown', color: brand?.[2] || '#929DAA', rect: ir });
+    };
+    const roots = new Set([document, el.getRootNode()]);
+    for (const root of roots) for (const dx of [6, 16, 26, 36, 46]) for (const dy of [-8, 0, 8])
+      for (const n of root.elementsFromPoint(r.right - dx, r.top + r.height / 2 + dy)) consider(n, true);
+    for (const n of [...document.querySelectorAll(KNOWN_SEL), ...document.documentElement.children, ...(document.body?.children || [])]) consider(n, false);
+    if (!found.length) return null;
+    const nb = found.reduce((a, b) => b.rect.right > a.rect.right ? b : a); // the rightmost icon decides where we go
+    return { name: nb.name, color: nb.color, left: Math.round(nb.rect.left - r.left), right: Math.round(nb.rect.right - r.left),
+      mid: Math.round((nb.rect.left + nb.rect.right) / 2 - r.left) };
+  }
+  function updateNeighbor() {
+    neighbor = findNeighbor(field);
+    if (neighbor) field.setAttribute('data-fmalias-neighbor', neighbor.name); else field.removeAttribute('data-fmalias-neighbor');
+  }
 
   function ringSvg(w, h) {
     const f = n => +n.toFixed(2), { R, cx, cy } = circle(w, h), k = 0.707 * R, ex = cx - k, nx = cx - R - 8;
@@ -186,9 +245,22 @@
     const d = `M${f(1 + rr)} ${y0}H${f(nx)}C${f(nx + 6)} ${y0} ${f(ex - 3)} ${f(cy - k + 3)} ${f(ex)} ${f(cy - k)}` +
       `A${R} ${R} 0 1 1 ${f(ex)} ${f(cy + k)}C${f(ex - 3)} ${f(cy + k - 3)} ${f(nx + 6)} ${f(y1)} ${f(nx)} ${f(y1)}` +
       `H${f(1 + rr)}A${f(rr)} ${f(rr)} 0 0 1 1 ${f(y1 - rr)}V${f(y0 + rr)}A${f(rr)} ${f(rr)} 0 0 1 ${f(1 + rr)} ${y0}Z`;
-    return `<svg width="${f(w)}" height="${f(h)}" style="overflow:visible;filter:drop-shadow(0 0 4px var(--fm-glow))">
+    // Sharing the field: the outline (and its glow) runs from their color at their icon, blends where the neck
+    // meets our bubble, and is ours from there on.
+    let glow = 'filter:drop-shadow(0 0 4px var(--fm-glow))', defs = '', stroke = '';
+    if (neighbor) {
+      const c = neighbor.color, mid = neighbor.mid;
+      defs = `<defs><linearGradient id="fm-g" gradientUnits="userSpaceOnUse" x1="${f(mid)}" y1="0" x2="${f(cx)}" y2="0">` +
+        `<stop offset="0" style="stop-color:${c}"/><stop offset="${f((ex - mid) / (cx - mid))}" style="stop-color:color-mix(in oklab, ${c}, var(--fm-line))"/>` +
+        `<stop offset="1" style="stop-color:var(--fm-line)"/></linearGradient>` +
+        `<filter id="fm-b" x="-5%" y="-40%" width="110%" height="180%"><feGaussianBlur stdDeviation="2"/></filter></defs>` +
+        `<path d="${d}" filter="url(#fm-b)" style="fill:none;stroke:url(#fm-g);stroke-width:3;opacity:.6"/>`;
+      glow = '';
+      stroke = ' style="stroke:url(#fm-g)"';
+    }
+    return `<svg width="${f(w)}" height="${f(h)}" style="overflow:visible;${glow}">${defs}
       <circle class="fm-fill" cx="${f(cx)}" cy="${f(cy)}" r="${R - 0.5}"/><circle class="fm-tint" cx="${f(cx)}" cy="${f(cy)}" r="${R - 0.5}"/>
-      <path class="fm-line" d="${d}"/>
+      <path class="fm-line" d="${d}"${stroke}/>
       <g transform="translate(${f(cx - 12 * s)} ${f(cy - 12 * s)}) scale(${f(s)})" stroke-width="${f(2 / s)}">${LOGO}</g></svg>`;
   }
 
@@ -201,8 +273,13 @@
     shift = { x: shift.x - h0.left, y: shift.y - h0.top };
     host.style.translate = `${shift.x}px ${shift.y}px`;
     let size, x, y;
+    // No room right of their icon (field near the screen edge): plain badge below the field's right end.
+    const c0 = circle(r.width, r.height), below = bubbleOk && !!neighbor && r.left + c0.cx + c0.R + 2 > innerWidth;
+    setBubble(bubbleOk && !below);
+    ring.hidden = !bubble;
+    badge.classList.toggle('ghost', bubble);
     if (bubble) {
-      const key = r.width + 'x' + r.height;
+      const key = r.width + 'x' + r.height + (neighbor ? `:${neighbor.right}:${neighbor.color}` : '');
       if (key !== drawn) { ring.innerHTML = ringSvg(r.width, r.height); drawn = key; }
       ring.style.left = r.left + 'px';
       ring.style.top = r.top + 'px';
@@ -211,13 +288,16 @@
       x = r.left + cx - size / 2;
       y = r.top + cy - size / 2;
     } else {
-      size = 28; // ~28px in from the right edge so Bitwarden's own inline icon keeps its spot
-      x = Math.max(r.left + 2, r.right - 56);
-      y = r.top + (r.height - size) / 2;
+      size = 28;
+      if (below) { x = r.right - size; y = r.bottom + 4; }
+      else { // left of their icon, or ~28px in from the right edge where password managers usually put theirs
+        x = Math.max(r.left + 2, neighbor ? r.left + neighbor.left - size - 4 : r.right - 56);
+        y = r.top + (r.height - size) / 2;
+      }
     }
     Object.assign(badge.style, { left: x + 'px', top: y + 'px', width: size + 'px', height: size + 'px' });
     if (panel.hidden) return;
-    const w = panel.offsetWidth, h = panel.offsetHeight, gap = bubble ? 8 : 4;
+    const w = panel.offsetWidth, h = panel.offsetHeight, gap = bubble ? 8 : below ? 36 : 4;
     panel.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
     panel.style.top = (r.bottom + gap + h > innerHeight && r.top - gap - h > 0 ? r.top - gap - h : r.bottom + gap) + 'px';
   }
@@ -225,24 +305,32 @@
   function show(el) {
     if (el !== field) {
       restoreBorder();
+      bubble = false;
       unmark(field);
       field = el;
       const s = getComputedStyle(el);
       radius = parseFloat(s.borderTopLeftRadius) || 0;
-      bubble = !plainLook(el.getBoundingClientRect(), s);
-      drawn = '';
-      if (bubble) {
-        savedStyle = Object.keys(HIDDEN_STYLE).map(k => [k, el.style.getPropertyValue(k), el.style.getPropertyPriority(k)]);
-        for (const k in HIDDEN_STYLE) el.style.setProperty(k, HIDDEN_STYLE[k], 'important');
-      }
+      bubbleOk = !plainLook(el.getBoundingClientRect(), s);
+      updateNeighbor();
+      rechecks.forEach(clearTimeout);
+      // Password managers draw their icons a moment after focus.
+      rechecks = [300, 1000].map(t => setTimeout(() => { if (field === el) { updateNeighbor(); place(); } }, t));
     }
     const parent = containerFor(el);
     if (host.parentNode !== parent) parent.appendChild(host);
     el.setAttribute('data-fmalias', 'attached'); // lets test pages see which field has the badge
     badge.hidden = false;
-    ring.hidden = !bubble;
-    badge.classList.toggle('ghost', bubble);
     place();
+  }
+
+  // Bubble mode hides the field's own border; the plain badge leaves it alone.
+  function setBubble(on) {
+    if (on === bubble) return;
+    bubble = on;
+    drawn = '';
+    if (!on) return restoreBorder();
+    savedStyle = Object.keys(HIDDEN_STYLE).map(k => [k, field.style.getPropertyValue(k), field.style.getPropertyPriority(k)]);
+    for (const k in HIDDEN_STYLE) field.style.setProperty(k, HIDDEN_STYLE[k], 'important');
   }
 
   // Pop-up windows (aria-modal or <dialog>) pull focus back or make the rest of the page unclickable,
@@ -262,6 +350,9 @@
 
   function hide() { // detached when idle so pages can't spot the extension
     restoreBorder();
+    bubble = false;
+    neighbor = null;
+    rechecks.forEach(clearTimeout);
     unmark(field);
     panel.hidden = badge.hidden = ring.hidden = true;
     field = null;
@@ -412,7 +503,7 @@
     if (e.composedPath()[0] === field) panel.hidden = true; else hide();
   }, true);
   addEventListener('scroll', () => field && place(), { capture: true, passive: true });
-  addEventListener('resize', () => field && place(), { passive: true });
+  addEventListener('resize', () => { if (field) { updateNeighbor(); place(); } }, { passive: true });
   addEventListener('contextmenu', e => { ctxTarget = deepTarget(e.composedPath()[0]); }, true);
 
   chrome.runtime.onMessage.addListener((m, _, reply) => {

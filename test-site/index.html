@@ -249,6 +249,14 @@
     <input type="email" id="disabled" disabled placeholder="disabled">
   </div>
 
+  <div class="card">
+    <h3>21. Sharing the field with another extension</h3>
+    <p class="muted">A fake password-manager icon (a blue shield with class="bitwarden-inline-icon") appears at the field's right end 200ms after focus, the way Bitwarden's does.</p>
+    <p class="expected">Expected: <b>badge</b>, sitting right of the shield without covering it. The outline goes from Bitwarden blue, through a blend, into our blue.</p>
+    <div class="row"><label for="shared">Email with another extension's icon</label><span class="st" data-check="shared"></span></div>
+    <div id="shared-wrap" style="position:relative;width:calc(100% - 56px)"><input type="email" id="shared" name="email" style="width:100%"></div>
+  </div>
+
   <h2 class="group">Fill check</h2>
   <div class="card">
     <p class="muted" style="margin-bottom:10px">What got filled into each field, and whether the input and change events fired (frameworks like React only notice a fill through these events).</p>
@@ -371,8 +379,35 @@
     { id: 'in-search-div', name: '20 In .site-search', expect: 'none', el: () => $id('in-search-div') },
     { id: 'readonly', name: '20 Read-only', expect: 'none', el: () => $id('readonly') },
     { id: 'disabled', name: '20 Disabled', expect: 'none', el: () => $id('disabled') },
+    { id: 'shared', name: '21 Shared field', expect: 'badge', el: () => $id('shared'), verify: verifyShared },
   ];
   CHECKS.forEach(c => { c.state = 'untested'; });
+
+  // 21: the fake icon comes and goes with focus, like a password manager's.
+  let shieldTimer;
+  $id('shared').addEventListener('focus', () => {
+    clearTimeout(shieldTimer);
+    shieldTimer = setTimeout(() => {
+      if (document.querySelector('.bitwarden-inline-icon')) return;
+      $id('shared-wrap').insertAdjacentHTML('beforeend', '<span class="bitwarden-inline-icon" style="position:absolute;right:8px;top:50%;width:24px;height:24px;margin-top:-12px;display:grid;place-items:center">' +
+        '<svg width="24" height="24" viewBox="0 0 24 24"><path fill="#175DDC" d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/></svg></span>');
+    }, 200);
+  });
+  $id('shared').addEventListener('blur', () => { clearTimeout(shieldTimer); document.querySelector('.bitwarden-inline-icon')?.remove(); });
+  // Our layer is a closed shadow root, so check from outside: the shield's center must still be the shield,
+  // and the spot just right of it must be ours.
+  async function verifyShared(el) {
+    el.scrollIntoView({ block: 'center' }); // hit-testing only sees what's on screen
+    await sleep(600); // shield at 200ms, extension re-checks at 300ms
+    const icon = document.querySelector('.bitwarden-inline-icon')?.getBoundingClientRect();
+    if (!icon) return 'the fake icon never appeared';
+    const midY = icon.top + icon.height / 2;
+    const atIcon = document.elementFromPoint(icon.left + icon.width / 2, midY), right = document.elementFromPoint(icon.right + 20, midY);
+    if (el.getAttribute('data-fmalias-neighbor') !== 'Bitwarden') return 'extension did not notice the Bitwarden icon';
+    if (atIcon?.localName === 'fastmail-alias') return 'our bubble covers the other icon';
+    if (right?.localName !== 'fastmail-alias') return 'our bubble is not right of the other icon';
+    return '';
+  }
 
   // React field: the state line turns green when it matches a filled alias.
   $id('controlled').addEventListener('input', e => { $id('controlled-state').parentElement.style.color = e.target.value.includes('@') ? 'var(--ok)' : ''; });
@@ -479,6 +514,8 @@
       // Focus left the page mid-check: the extension never saw this field, so redo it rather than fail it.
       if (!c.reason && !document.hasFocus()) { el.blur(); c.done?.(); i--; continue; }
       c.state = attached === (c.expect === 'badge') ? 'pass' : 'fail';
+      const bad = c.state === 'pass' && c.verify ? await c.verify(el) : '';
+      if (bad) { c.state = 'fail'; c.reason = bad; }
       el.blur();
       c.done?.();
       render();
