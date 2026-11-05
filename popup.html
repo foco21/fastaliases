@@ -12,22 +12,21 @@
       <div class="caption">This site</div>
       <div class="site" id="site"></div>
     </div>
-    <button class="pill sea sea-sm sea-cobalt" id="create">Create alias</button>
   </header>
 
-  <section class="sea sea-azure card prefix-card">
+  <!-- One card: prefix, Create, and the address it will make. -->
+  <section class="sea sea-azure sea-interactive card prefix-card" id="preview">
     <label for="prefix">Prefix</label>
-    <input id="prefix" spellcheck="false" autocomplete="off" placeholder="optional">
-  </section>
-
-  <section class="sea sea-lavender card preview" id="preview" aria-live="polite">
-    <div class="caption" id="caption">You're about to create</div>
-    <div class="address mono" id="address"></div>
+    <div class="prefix-row">
+      <input id="prefix" spellcheck="false" autocomplete="off" placeholder="optional" aria-describedby="address">
+      <button class="pill sea sea-sm sea-cobalt sea-interactive" id="create">Create alias</button>
+    </div>
+    <div class="address mono" id="address" aria-live="polite"></div>
   </section>
 
   <label class="sea sea-quiet switch-row" id="site-row" hidden>
     <span id="site-row-text">Show the @ button on this site</span>
-    <input type="checkbox" class="sea" id="site-toggle" role="switch">
+    <input type="checkbox" class="sea sea-interactive" id="site-toggle" role="switch">
   </label>
 
   <div class="status" id="status" role="alert"></div>

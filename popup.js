@@ -3,6 +3,7 @@ const ICON = {
   copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
+  globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
   power: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>',
 };
 let tab, host = '', domain = 'fastmail.com';
@@ -12,7 +13,7 @@ const copy = text => navigator.clipboard.writeText(text).then(() => true, () => 
 
 function status(text = '', withSettings = false) {
   $('status').replaceChildren(text);
-  if (withSettings) $('status').append(el('button', { className: 'sea sea-sm sea-frost', textContent: 'Open settings', onclick: () => chrome.runtime.openOptionsPage() }));
+  if (withSettings) $('status').append(el('button', { className: 'sea sea-sm sea-frost sea-interactive', textContent: 'Open settings', onclick: () => chrome.runtime.openOptionsPage() }));
 }
 const showError = e => status(errorText(e), ['NO_TOKEN', 'BAD_TOKEN', 'NO_SCOPE'].includes(e?.code));
 
@@ -20,8 +21,7 @@ const showError = e => status(errorText(e), ['NO_TOKEN', 'BAD_TOKEN', 'NO_SCOPE'
 function preview() {
   const p = sanitizePrefix($('prefix').value);
   $('preview').classList.remove('done');
-  $('caption').textContent = "You're about to create";
-  $('address').replaceChildren(p, el('span', { className: 'tail', textContent: (p ? '.' : '') + 'xxxxx' }), '@' + domain);
+  $('address').replaceChildren(...(p ? [el('b', { textContent: p }), '.'] : []), 'xxxxx@' + domain);
 }
 
 let selectedId = null; // the expanded row
@@ -48,9 +48,9 @@ function aliasRow(a) {
   const off = a.state === 'disabled', at = a.email.indexOf('@');
   const li = el('li', { className: 'alias' + (off ? ' off' : '') });
   li.dataset.id = a.id;
-  // Local part crisp, "@fastmail.com" muted (and dropped for an Off chip on disabled ones).
+  // Local part crisp, "@fastmail.com" muted; an Off row hides the domain behind an Off chip until it is opened.
   const address = el('span', { className: 'email mono' }, el('span', { className: 'local', textContent: a.email.slice(0, at) }));
-  if (!off) address.append(el('span', { className: 'at', textContent: a.email.slice(at) }));
+  address.append(el('span', { className: 'at', textContent: a.email.slice(at) })); // hidden on Off rows until opened
   const main = button('row-main', 'main', { title: a.description || a.forDomain || a.email });
   main.append(el('span', { className: 'dot', ariaHidden: 'true' }), address);
   if (off) main.append(el('span', { className: 'chip sea sea-sm sea-ruby', textContent: 'Off' }));
@@ -77,7 +77,6 @@ function aliasRow(a) {
   del.onclick = () => startDelete(a, li);
 
   const details = el('div', { className: 'details', id: 'd-' + a.id, hidden: true },
-    el('div', { className: 'full mono', textContent: a.email }),
     el('div', { className: 'meta' }, ...(a.forDomain ? [el('span', { className: 'chip sea sea-sm sea-lagoon', textContent: siteOf(a.forDomain) })] : []), madeOn(a.createdAt)));
   li.append(main, copyBtn, toggle, del, details);
   return li;
@@ -98,7 +97,7 @@ function select(id) {
 
 // Delete with a 5-second undo. The background holds the timer and sends the delete; this just shows the bar.
 function deletedBar(a) {
-  const undo = button('undo sea sea-sm sea-frost', 'undo', { textContent: 'Undo', ariaLabel: 'Undo deleting ' + a.email });
+  const undo = button('undo sea sea-sm sea-frost sea-interactive', 'undo', { textContent: 'Undo', ariaLabel: 'Undo deleting ' + a.email });
   undo.onclick = async () => {
     undo.disabled = true;
     try { await send({ type: 'undoDelete', id: a.id }); } catch (e) { showError(e); }
@@ -166,8 +165,8 @@ async function create() {
     const filled = frameId != null && await chrome.tabs.sendMessage(tab.id, { type: 'fill', email: alias.email, origin }, { frameId }).then(r => !!r?.filled, () => false);
     const copied = await copy(alias.email);
     $('preview').classList.add('done');
-    $('caption').textContent = 'Created · ' + (filled && copied ? 'filled + copied' : filled ? 'filled' : copied ? 'copied' : 'not copied');
-    $('address').textContent = alias.email;
+    $('address').replaceChildren(el('b', { textContent: alias.email }));
+    toast('Created · ' + (filled && copied ? 'filled + copied' : filled ? 'filled' : copied ? 'copied' : 'not copied'));
     if (origin) SECTIONS.here = true; // the new alias shows, selected, in an open "For <site>"
     refresh(alias.id);
   } catch (e) { showError(e); }
@@ -188,6 +187,18 @@ $('site-toggle').onchange = () => send({ type: 'setSiteHidden', host, hidden: !$
 
 // Collapsible sections; open/closed is remembered. With no website there's only one section, so it starts open.
 const SECTIONS = { here: true, rest: false };
+// Mark which ends of the alias list have more to scroll to, for the fades.
+// ...and which section header is stuck at the top (only that one gets a frosted background).
+function fades() {
+  const l = document.querySelector('.list-scroll'), top = l.getBoundingClientRect().top;
+  l.classList.toggle('more-above', l.scrollTop > 1);
+  l.classList.toggle('more-below', l.scrollTop + l.clientHeight < l.scrollHeight - 1);
+  for (const h of l.querySelectorAll('.sec-head')) h.classList.toggle('stuck', l.scrollTop > 0 && Math.abs(h.getBoundingClientRect().top - top) < 1);
+}
+document.querySelector('.list-scroll').addEventListener('scroll', fades, { passive: true });
+const listSize = new ResizeObserver(fades); // rows added, opened, sections folded
+for (const id of ['sec-here', 'sec-rest', 'list']) listSize.observe($(id));
+
 function setSection(name, open) {
   SECTIONS[name] = open;
   $(`sec-${name}-btn`).setAttribute('aria-expanded', open);
@@ -210,7 +221,8 @@ $('prefix').onkeydown = e => { if (e.key === 'Enter') create(); };
   $('site').classList.toggle('none', !host);
   // The tab's own favicon (activeTab gives us it); a letter when there isn't one.
   const fav = host && tab.favIconUrl && /^(https:|data:image\/)/.test(tab.favIconUrl) ? el('img', { src: tab.favIconUrl, alt: '' }) : null;
-  $('fav').replaceChildren(fav || (host ? host.replace(/^www\./, '')[0].toUpperCase() : '–'));
+  if (fav || host) $('fav').replaceChildren(fav || host.replace(/^www\./, '')[0].toUpperCase());
+  else $('fav').innerHTML = ICON.globe;
   if (fav) fav.onerror = () => $('fav').replaceChildren(host.replace(/^www\./, '')[0].toUpperCase());
   $('prefix').value = host ? defaultPrefix(host) : '';
   preview();

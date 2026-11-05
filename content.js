@@ -23,11 +23,11 @@
   const root = host.attachShadow({ mode: 'closed' });
   // Sea: frosted azure glass. Light/dark follows the page behind the field (.fm.dark), not the browser setting.
   root.innerHTML = `<style>
-    .fm { --fm-line:#2f7fe0; --fm-amber:#ffb020; --fm-glow:rgba(61,155,255,.55); --fm-glass:#3d9bff; --fm-milk:#f6faf8; --fm-milk-mix:40%;
-      --fm-grain:.8; --fm-strength:28%; --fm-focus:#0e1f55;
+    .fm { --fm-line:#2f7fe0; --fm-amber:#ffb020; --fm-glow:rgba(61,155,255,.55); --fm-glass:#3d9bff; --fm-milk:#f6faf8; --fm-milk-mix:70%;
+      --fm-strength:28%; --fm-focus:#0e1f55;
       --bg:#fff; --fg:#1d1d1f; --muted:#6b7280; --line:#e5e7eb; --hover:#f3f4f6; --accent:#2563eb; --accent-fg:#fff; --err:#b91c1c; }
-    .fm.dark { --fm-line:#69b3e7; --fm-amber:#ffc107; --fm-glow:rgba(105,179,231,.45); --fm-glass:#4f8fd8; --fm-milk:#121a26; --fm-milk-mix:55%;
-      --fm-grain:.35; --fm-focus:#fff;
+    .fm.dark { --fm-line:#69b3e7; --fm-amber:#ffc107; --fm-glow:rgba(105,179,231,.45); --fm-glass:#4f8fd8; --fm-milk:#121a26; --fm-milk-mix:75%;
+      --fm-focus:#fff;
       --bg:#1f2023; --fg:#ececef; --muted:#9ca3af; --line:#3a3b40; --hover:#2a2b2f; --accent:#60a5fa; --accent-fg:#0b1220; --err:#f87171; }
     .fm:has(.badge:hover) { --fm-strength:56%; }
     .fm:has(.badge:active) { --fm-strength:72%; }
@@ -39,7 +39,8 @@
     [hidden] { display:none !important; }
     .ring { position:fixed; pointer-events:none; }
     .ring svg { position:absolute; left:0; top:0; overflow:visible; }
-    /* Glass: the neck and bubble only, clipped to the outline; the field keeps the site's own background. */
+    /* Smooth glass (no grain), mostly milk so it reads over anything: the neck and bubble only, clipped to the outline;
+       the field keeps the site's own background. */
     .glass, .badge.plain { isolation:isolate;
       background:linear-gradient(color-mix(in srgb,var(--fm-glass) var(--fm-strength),transparent),color-mix(in srgb,var(--fm-glass) var(--fm-strength),transparent)),
                  color-mix(in srgb,var(--fm-milk) var(--fm-milk-mix),transparent);
@@ -49,8 +50,6 @@
     .frost { position:absolute; }
     .glass { position:absolute; /* fades in along the neck, so the field seems to swell into the bubble */
       -webkit-mask-image:linear-gradient(to right, transparent, #000 var(--fm-fade)); mask-image:linear-gradient(to right, transparent, #000 var(--fm-fade)); }
-    .glass::after, .badge.plain::after { content:""; position:absolute; inset:0; z-index:-1; border-radius:inherit; pointer-events:none;
-      background:var(--fm-grain-img) 0 0/180px 180px; mix-blend-mode:screen; opacity:var(--fm-grain); }
     .badge { position:fixed; padding:0; border:0; cursor:pointer; display:grid; place-items:center; background:none; }
     .badge.plain { width:32px; height:28px; /* a little wider than tall, so the pebble corners never round into a circle */ border:1.5px solid var(--fm-line); border-radius:12px 15px 13px 16px / 15px 12px 16px 13px;
       box-shadow:0 0 4px var(--fm-glow); }
@@ -182,7 +181,7 @@
     return yes;
   }
   // When the badge goes away, drop "attached" (the reason stays for test pages).
-  const unmark = el => { if (el?.getAttribute('data-fmalias') === 'attached') el.removeAttribute('data-fmalias'); el?.removeAttribute('data-fmalias-neighbor'); };
+  const unmark = el => { if (el?.getAttribute('data-fmalias') === 'attached') el.removeAttribute('data-fmalias'); el?.removeAttribute('data-fmalias-neighbor'); el?.removeAttribute('data-fmalias-place'); };
 
   // Shadow root of an element, open or closed (extensions may open closed ones, as Bitwarden does).
   // chrome.dom.openOrClosedShadowRoot throws on anything that isn't an HTML element, e.g. the SVG icons all over Reddit.
@@ -381,19 +380,45 @@
     return /dark/.test(getComputedStyle(document.documentElement).colorScheme) && matchMedia('(prefers-color-scheme: dark)').matches;
   }
 
-  // Sand-grain texture for the glass, made once on a detached canvas (a data URL: nothing for pages to probe for).
-  let grainSet = false;
-  function setGrain() {
-    if (grainSet) return;
-    grainSet = true;
-    const c = Object.assign(document.createElement('canvas'), { width: 180, height: 180 }), x = c.getContext('2d'), img = x.createImageData(180, 180);
-    for (let i = 0; i < img.data.length; i += 4) {
-      const r = Math.random();
-      img.data.fill(255, i, i + 3);
-      img.data[i + 3] = 70 * r ** 8 + (r > 0.993 ? 45 : 0);
+  // Would the bubble, outside the field, cover the page's own content? Samples a 3x3 grid over the part beyond the field.
+  // Anything there other than the field and the boxes around it counts: text, images, controls, or a painted box. A painted box
+  // that sits behind the field AND the whole bubble (a modal's panel or backdrop drawn as a separate layer, as on x.com and
+  // Reddit) is background; if the bubble would hang over its edge, it blocks.
+  // Returns what's in the way (for data-fmalias-place and debug logs), or '' when the spot is free.
+  function spotTaken(r, g) {
+    const own = new Set([host, field, ...ancestors(field)]);
+    const x0 = Math.max(r.right + 2, r.left + g.left), x1 = r.left + g.right - 2, y0 = r.top + g.top + 2, y1 = r.top + g.bottom - 2;
+    const holds = (q, left, top, right, bottom) => q.left <= left && q.top <= top && q.right >= right && q.bottom >= bottom;
+    const behind = n => { const q = n.getBoundingClientRect();
+      return holds(q, r.left, r.top, r.right, r.bottom) && holds(q, r.left + g.left - 4, r.top + g.top - 4, r.left + g.right + 4, r.top + g.bottom + 4); };
+    const range = document.createRange();
+    // Text counts where its letters are, not across its element's whole box (a wide flex label next to the field).
+    const textAt = (n, x, y) => [...n.childNodes].some(c => c.nodeType === 3 && c.textContent.trim() &&
+      (range.selectNodeContents(c), [...range.getClientRects()].some(q => x >= q.left - 1 && x <= q.right + 1 && y >= q.top - 1 && y <= q.bottom + 1)));
+    for (const fx of [0, .5, 1]) for (const fy of [0, .5, 1]) {
+      const x = x0 + (x1 - x0) * fx, y = y0 + (y1 - y0) * fy;
+      for (const n of document.elementsFromPoint(x, y)) {
+        if (own.has(n) || frame.contains(n)) continue;
+        const s = getComputedStyle(n);
+        if (n.matches('img, svg, canvas, video, iframe, a, button, input, select, textarea') || textAt(n, x, y) ||
+          (rgbaOf(s.backgroundColor)[3] > 25 || visibleBorder(s)) && !behind(n)) return n.localName + (n.id ? '#' + n.id : typeof n.className === 'string' && n.className.trim() ? '.' + n.className.trim().split(/\s+/)[0] : '');
+      }
     }
-    x.putImageData(img, 0, 0);
-    wrap.style.setProperty('--fm-grain-img', `url(${c.toDataURL()})`);
+    return '';
+  }
+
+  // Badge inside the field: widen the input's right padding so typed text stops short of it. Restored when it moves away.
+  let savedPad = null, padPx = 0;
+  function padField(px) {
+    if (px === padPx) return;
+    padPx = px;
+    if (savedPad) for (const [k, v, prio] of savedPad) field.style.setProperty(k, v, prio);
+    savedPad = null;
+    const s = getComputedStyle(field), extra = px - parseFloat(s.paddingRight);
+    if (!px || extra <= 0) return;
+    savedPad = ['padding-right', 'width'].map(k => [k, field.style.getPropertyValue(k), field.style.getPropertyPriority(k)]);
+    field.style.setProperty('padding-right', px + 'px', 'important');
+    if (s.boxSizing === 'content-box') field.style.setProperty('width', parseFloat(s.width) - extra + 'px', 'important'); // same outer size
   }
 
   function place() {
@@ -404,10 +429,20 @@
     const h0 = host.getBoundingClientRect();
     shift = { x: shift.x - h0.left, y: shift.y - h0.top };
     host.style.translate = `${shift.x}px ${shift.y}px`;
-    let size, x, y;
-    // No room for the pebble before the screen edge: the plain badge instead (below the field if their icon is in the way).
-    const g = geom(r.width, r.height), fits = r.left + g.right + 2 <= innerWidth, below = bubbleOk && !fits && !!neighbor;
-    setBubble(bubbleOk && fits);
+    let x, y;
+    // Where the @ goes: (a) the traced bubble at the field's end; (b) with a password manager's icon, past that icon, but only
+    // if that spot is free of page content; (c) otherwise the small badge inside the field, 6px left of the icon;
+    // (d) a field too narrow for that gets nothing on the page (the toolbar popup still works).
+    const g = geom(r.width, r.height), fits = r.left + g.right + 2 <= innerWidth;
+    const taken = bubbleOk && fits && neighbor ? spotTaken(r, g) : '';
+    let spot = bubbleOk && fits && !taken ? 'traced' : neighbor ? 'beside icon' : 'inside';
+    const besideX = neighbor && r.left + neighbor.left - 32 - 6;
+    if (spot === 'beside icon' && besideX - r.left < 48) spot = 'none'; // under ~48px left for typing
+    const said = spot + (taken ? ` (spot past the icon taken by ${taken})` : '');
+    if (field.getAttribute('data-fmalias-place') !== said) { field.setAttribute('data-fmalias-place', said); if (debug) console.log('[FMAlias] @ ' + said); }
+    setBubble(spot === 'traced');
+    padField(spot === 'beside icon' ? Math.ceil(field.getBoundingClientRect().right - besideX + 4) : 0);
+    badge.hidden = spot === 'none';
     ring.hidden = !bubble;
     badge.classList.toggle('ghost', bubble);
     badge.classList.toggle('plain', !bubble);
@@ -422,33 +457,25 @@
       y = r.top + (g.top + g.bottom - bh) / 2;
       Object.assign(badge.style, { left: x + 'px', top: y + 'px', width: bw + 'px', height: bh + 'px' });
     } else {
-      size = 28;
-      if (below) { x = r.right - 32; y = r.bottom + 4; }
-      else if (neighbor) { // their icon is in the field: we go just outside its right edge, 6px clear of the field and the icon
-        x = r.left + Math.max(r.width, neighbor.right) + 6;
-        y = r.top + (r.height - size) / 2;
-        if (x + 32 > innerWidth) { x = r.right - 32; y = r.bottom + 4; } // no room on screen: below the field's right end
-      } else { // ~28px in from the right edge, where password managers usually put theirs
-        x = Math.max(r.left + 2, r.right - 60);
-        y = r.top + (r.height - size) / 2;
-      }
+      x = neighbor ? besideX : Math.max(r.left + 2, r.right - 60); // ~28px in from the right edge, where password managers put theirs
+      y = r.top + (r.height - 28) / 2;
     }
     if (!bubble) Object.assign(badge.style, { left: x + 'px', top: y + 'px', width: '', height: '' }); // size comes from .plain
     if (panel.hidden) return;
-    const w = panel.offsetWidth, h = panel.offsetHeight, gap = bubble ? 8 : below ? 36 : 4;
+    const w = panel.offsetWidth, h = panel.offsetHeight, gap = bubble ? 8 : 4;
     panel.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
     panel.style.top = (r.bottom + gap + h > innerHeight && r.top - gap - h > 0 ? r.top - gap - h : r.bottom + gap) + 'px';
   }
 
   function show(el) {
     if (el !== field) {
+      if (field) padField(0);
       restoreBorder();
       bubble = false;
       unmark(field);
       field = el;
       measure(el);
       wrap.classList.toggle('dark', darkBehind(el));
-      setGrain();
       updateNeighbor();
       rechecks.forEach(clearTimeout);
       // Password managers draw their icons a moment after focus.
@@ -456,8 +483,12 @@
       // the look is decided again too. Once traced we've hidden its border ourselves, so there's nothing left to re-read.
       rechecks = [300, 1000].map(t => setTimeout(() => { if (field === el) { if (!bubbleOk) measure(el); updateNeighbor(); place(); } }, t));
       // ...or much later, on autofocused fields: they append their icon to <html> or <body>, so watch those while we show.
-      iconWatch.disconnect();
-      for (const n of [document.documentElement, document.body]) if (n) iconWatch.observe(n, { childList: true });
+      watch.disconnect();
+      for (const n of [document.documentElement, document.body]) if (n) watch.observe(n, { childList: true });
+      // ...and anything appearing near the field, like a validation message after typing, which can take the bubble's spot.
+      let near = formScope(el);
+      if (!near) { near = frame; for (let i = 0; i < 3 && up(near) instanceof Element; i++) near = up(near); }
+      watch.observe(near, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
     }
     const parent = containerFor(el);
     if (host.parentNode !== parent) parent.appendChild(host);
@@ -506,14 +537,17 @@
     savedStyle = null;
   }
 
-  let iconFrame = 0;
-  const iconWatch = new MutationObserver(ms => {
-    if (!field || iconFrame || ms.every(m => [...m.addedNodes, ...m.removedNodes].every(n => n === host))) return;
-    iconFrame = requestAnimationFrame(() => { iconFrame = 0; if (field) { updateNeighbor(); place(); } });
+  let watchFrame = 0;
+  const ourChange = m => m.target === host || m.target === field || m.target === frame || // our own style and attribute changes
+    m.type === 'childList' && [...m.addedNodes, ...m.removedNodes].every(n => n === host);
+  const watch = new MutationObserver(ms => {
+    if (!field || watchFrame || ms.every(ourChange)) return;
+    watchFrame = requestAnimationFrame(() => { watchFrame = 0; if (field) { updateNeighbor(); place(); } });
   });
 
   function hide() { // detached when idle so pages can't spot the extension
-    iconWatch.disconnect();
+    watch.disconnect();
+    if (field) padField(0);
     restoreBorder();
     bubble = false;
     neighbor = null;

@@ -25,6 +25,12 @@
   .fl input { height: 100%; padding: 18px 40px 2px 0; border: 0; border-radius: 0; outline: none; background: transparent; }
   .fl label { position: absolute; left: 14px; top: 17px; margin: 0; color: var(--muted); pointer-events: none; transition: top .15s, font-size .15s; }
   .fl input:focus + label, .fl input:not(:placeholder-shown) + label { top: 6px; font-size: 12px; }
+  /* 25-26: backdrop and panel are absolutely positioned siblings painted behind the form, not its ancestors. */
+  .layers { position: relative; padding: 20px 16px; }
+  .layer-backdrop { position: absolute; inset: 0; background: #22303f; border-radius: 10px; }
+  .layer-panel { position: absolute; top: 8px; bottom: 8px; left: 8px; background: #fff; border-radius: 10px; }
+  .layer-content { position: relative; }
+  .layers input { background: #fff; color: #1d1d1f; border-color: #c4c7cc; }
   textarea { min-height: 70px; resize: vertical; }
   button { margin-top: 12px; padding: 9px 16px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
   button.plain { background: transparent; color: var(--fg); border: 1px solid var(--line); }
@@ -259,7 +265,8 @@
     <h3>21. Sharing the field with another extension</h3>
     <p class="muted">A fake password-manager icon (a blue shield with class="bitwarden-inline-icon") appears at the field's right end 200ms after focus, the way Bitwarden's does.</p>
     <p class="expected">Expected: <b>badge</b>, sitting right of the shield without covering it. The outline goes from Bitwarden blue, through a blend, into our blue.</p>
-    <div class="row"><label for="shared">Email with another extension's icon</label><span class="st" data-check="shared"></span></div>
+    <!-- 10px gap: the bubble past the shield pokes ~5px above the field, and must not land on this row's status pill -->
+    <div class="row" style="margin-bottom:10px"><label for="shared">Email with another extension's icon</label><span class="st" data-check="shared"></span></div>
     <div id="shared-wrap" style="position:relative;width:calc(100% - 56px)"><input type="email" id="shared" name="email" style="width:100%"></div>
   </div>
 
@@ -267,16 +274,39 @@
     <h3>22. Floating label, border on a wrapper, with another extension's icon</h3>
     <p class="muted">The input itself is borderless; the outline you see belongs to its wrapper. A Bitwarden-style shield appears 200ms after focus.</p>
     <p class="expected">Expected: <b>badge</b>, with the outline traced around the wrapper (not the plain badge), sitting right of the shield without covering it.</p>
-    <div class="row"><span style="flex:1;font-size:13px;font-weight:600">Floating-label email</span><span class="st" data-check="floating"></span></div>
+    <div class="row" style="margin-bottom:10px"><span style="flex:1;font-size:13px;font-weight:600">Floating-label email</span><span class="st" data-check="floating"></span></div>
     <div class="fl" id="floating-wrap"><input type="email" id="floating" name="email" placeholder=" "><label for="floating">Email address</label></div>
   </div>
 
   <div class="card">
     <h3>23. Small field with another extension's icon</h3>
     <p class="muted">A 32px field gets the plain badge. The shield appears 200ms after focus.</p>
-    <p class="expected">Expected: <b>badge</b>, just outside the field's right edge, at least 6px from the field and the shield.</p>
+    <p class="expected">Expected: <b>badge</b> inside the field, 6px or more left of the shield, with typed text kept clear of it.</p>
     <div class="row"><label for="short-shared">Small email with an icon</label><span class="st" data-check="short-shared"></span></div>
     <div id="short-shared-wrap" style="position:relative"><input type="email" id="short-shared" name="email" style="height:32px;padding:4px 10px"></div>
+  </div>
+
+  <div class="card">
+    <h3>24. Required field with an error beside it, and another extension's icon</h3>
+    <p class="muted">Leaving it empty shows a red "Email is required" to its right. A Bitwarden-style shield appears 200ms after focus.</p>
+    <p class="expected">Expected: <b>badge</b> inside the field, left of the shield. The bubble must not go past the shield onto the error.</p>
+    <div class="row"><label for="required">Required email</label><span class="st" data-check="required"></span></div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div id="required-wrap" style="position:relative;flex:1"><input type="email" id="required" name="email" required></div>
+      <span id="required-error" style="color:#d93025;font-size:13px;font-weight:600;white-space:nowrap" hidden>Email is required</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>25-26. Login pop-up drawn as separate layers</h3>
+    <p class="muted">Like x.com and Reddit: the dark backdrop and the white panel are painted boxes beside the form, not around it. A Bitwarden-style shield appears 200ms after focus.</p>
+    <p class="expected">Expected: 25 <b>badge</b> as the bubble past the shield (it fits on the panel). 26 <b>badge</b> inside the field, because the bubble would hang over the panel's right edge.</p>
+    <div class="row"><label for="modal-in">25 Room on the panel</label><span class="st" data-check="modal-in"></span></div>
+    <div class="layers"><div class="layer-backdrop"></div><div class="layer-panel" style="right:16px"></div>
+      <div class="layer-content" style="padding-right:96px"><div id="modal-in-wrap" style="position:relative"><input type="email" id="modal-in" name="email"></div></div></div>
+    <div class="row" style="margin-top:14px"><label for="modal-edge">26 Bubble would cross the panel's edge</label><span class="st" data-check="modal-edge"></span></div>
+    <div class="layers"><div class="layer-backdrop"></div><div class="layer-panel" style="right:16px"></div>
+      <div class="layer-content" style="padding-right:30px"><div id="modal-edge-wrap" style="position:relative"><input type="email" id="modal-edge" name="email"></div></div></div>
   </div>
 
   <h2 class="group">Fill check</h2>
@@ -404,12 +434,18 @@
     { id: 'shared', name: '21 Shared field', expect: 'badge', el: () => $id('shared'), verify: el => verifyBeside(el, 'bubble') },
     { id: 'floating', name: '22 Floating label', expect: 'badge', el: () => $id('floating'), verify: el => verifyBeside(el, 'bubble') },
     { id: 'short-shared', name: '23 Small + icon', expect: 'badge', el: () => $id('short-shared'), verify: el => verifyBeside(el, 'plain') },
+    { id: 'modal-in', name: '25 Pop-up, room', expect: 'badge', el: () => $id('modal-in'), verify: el => verifyBeside(el, 'bubble') },
+    { id: 'modal-edge', name: '26 Pop-up edge', expect: 'badge', el: () => $id('modal-edge'), verify: async el => (await verifyBeside(el, 'plain')) ||
+      (/taken by div\.layer-(panel|backdrop)/.test(el.getAttribute('data-fmalias-place') || '') ? '' : "expected the pop-up's edge to take the spot, got " + el.getAttribute('data-fmalias-place')) },
+    { id: 'required', name: '24 Error beside', expect: 'badge', el: () => $id('required'), prepare: () => { $id('required').focus(); $id('required').blur(); }, verify: el => verifyBeside(el, 'plain') },
   ];
   CHECKS.forEach(c => { c.state = 'untested'; });
 
   // 21-23: a fake password-manager icon comes and goes with focus, like Bitwarden's.
   const shieldTimers = {};
-  for (const [id, size] of [['shared', 24], ['floating', 24], ['short-shared', 20]]) {
+  // 24: the error shows when the field is left empty, like a site's own validation.
+  $id('required').addEventListener('blur', e => { $id('required-error').hidden = !!e.target.value; });
+  for (const [id, size] of [['shared', 24], ['floating', 24], ['short-shared', 20], ['required', 24], ['modal-in', 24], ['modal-edge', 24]]) {
     const wrap = $id(id + '-wrap');
     $id(id).addEventListener('focus', () => {
       clearTimeout(shieldTimers[id]);
@@ -435,9 +471,13 @@
     if (ours(icon.left + icon.width / 2)) return 'our badge covers the other icon';
     if (look === 'bubble' && !ours(icon.right + 20)) return 'our bubble is not right of the other icon';
     if (look === 'plain') {
-      const f = el.getBoundingClientRect(), right = Math.max(f.right, icon.right);
-      if ([1, 3, 5].some(d => ours(icon.left - d) || ours(right + d))) return 'our badge is closer than 6px to the field or the other icon';
-      if (!ours(right + 6 + 16)) return "our badge is not just outside the field's right edge";
+      if ([1, 3, 5].some(d => ours(icon.left - d))) return 'our badge is closer than 6px to the other icon';
+      if (!ours(icon.left - 6 - 16)) return 'our badge is not inside the field, left of the other icon';
+      if (parseFloat(getComputedStyle(el).paddingRight) < el.getBoundingClientRect().right - (icon.left - 6 - 32)) return 'typed text could run under our badge (padding-right too small)';
+      const err = $id(el.id + '-error');
+      // 24 keeps a real blocker past the icon: the badge must have been moved inside because that spot was taken.
+      if (err && !(el.getAttribute('data-fmalias-place') || '').startsWith('beside icon (spot past the icon taken')) return 'expected the spot past the icon to be taken by the error, got ' + el.getAttribute('data-fmalias-place');
+      if (err && !err.hidden) { const e = err.getBoundingClientRect(); if ([.2, .5, .8].some(f => ours(e.left + e.width * f, e.top + e.height / 2))) return 'our badge covers the error message'; }
     }
     return '';
   }
