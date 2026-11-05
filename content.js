@@ -9,35 +9,55 @@
   let bubbleOk = false; // field suits the traced outline (bubble may still fall back if there's no room)
   let neighbor = null;  // another extension's inline icon at the field's right end, in field coordinates
   let rechecks = [];
-  const HIDDEN_STYLE = { 'border-color': 'transparent', 'outline-color': 'transparent', 'box-shadow': 'none' }; // the overlay replaces the field's own outline and focus ring
+  // The overlay replaces the field's own outline, focus ring and border (including focus styles that swap in a border image).
+  // outline-style too: Chrome's default focus ring (outline-style: auto) ignores outline-color.
+  const HIDDEN_STYLE = { 'border-color': 'transparent', 'border-image': 'none', 'outline-style': 'none', 'outline-color': 'transparent', 'box-shadow': 'none' };
 
-  // Colors come from the --fm-* variables below so the bubble follows the light/dark theme.
-  const LOGO = `<path class="fm-l1" d="M21 12a9 9 0 1 0-5.5 8.28C17.34 19.5 22.74 21.96 23.88 20.32"/>
-    <path class="fm-l2" d="M16 9v4.5a2.5 2.5 0 0 0 5 0V12"/>
-    <path class="fm-y" d="M14.83 9.17A4 4 0 0 0 9.17 14.83Z"/>
-    <path class="fm-d" d="M9.17 14.83A4 4 0 0 0 14.83 9.17Z"/>`;
+  // Standalone @ for the small badge (24-unit box): stem with its hook, outer arc ending bottom right, split center dot.
+  const BADGE_AT = `<path class="fm-at" d="M16.85 8.89V13.04A2.08 2.08 0 0 0 21 13.04V12A9 9 0 1 0 15.46 20.3"/>
+    <path class="fm-y" d="M9.74 14.26A3.2 3.2 0 0 1 14.26 9.74Z"/><path class="fm-d" d="M14.26 9.74A3.2 3.2 0 0 1 9.74 14.26Z"/>`;
 
   const host = document.createElement('fastmail-alias');
   host.style.cssText = 'all:initial;position:fixed;top:0;left:0;z-index:2147483647';
   const root = host.attachShadow({ mode: 'closed' });
+  // Sea: frosted azure glass. Light/dark follows the page behind the field (.fm.dark), not the browser setting.
   root.innerHTML = `<style>
-    :host { --fm-line:#0067B9; --fm-line2:#69B3E7; --fm-dot:#0067B9; --fm-fill:#FFFFFF; --fm-tint:rgba(105,179,231,.14); --fm-glow:rgba(105,179,231,.6); }
-    @media (prefers-color-scheme: dark) { :host { --fm-line:#69B3E7; --fm-line2:#A9D4F5; --fm-dot:#3D8FD1; --fm-fill:#1F2023; --fm-tint:rgba(105,179,231,.18); --fm-glow:rgba(105,179,231,.45); } }
-    .fm-fill { fill:var(--fm-fill); } .fm-tint { fill:var(--fm-tint); } .fm-y { fill:#FFC107; } .fm-d { fill:var(--fm-dot); }
+    .fm { --fm-line:#2f7fe0; --fm-amber:#ffb020; --fm-glow:rgba(61,155,255,.55); --fm-glass:#3d9bff; --fm-milk:#f6faf8; --fm-milk-mix:40%;
+      --fm-grain:.8; --fm-strength:28%; --fm-focus:#0e1f55;
+      --bg:#fff; --fg:#1d1d1f; --muted:#6b7280; --line:#e5e7eb; --hover:#f3f4f6; --accent:#2563eb; --accent-fg:#fff; --err:#b91c1c; }
+    .fm.dark { --fm-line:#69b3e7; --fm-amber:#ffc107; --fm-glow:rgba(105,179,231,.45); --fm-glass:#4f8fd8; --fm-milk:#121a26; --fm-milk-mix:55%;
+      --fm-grain:.35; --fm-focus:#fff;
+      --bg:#1f2023; --fg:#ececef; --muted:#9ca3af; --line:#3a3b40; --hover:#2a2b2f; --accent:#60a5fa; --accent-fg:#0b1220; --err:#f87171; }
+    .fm:has(.badge:hover) { --fm-strength:56%; }
+    .fm:has(.badge:active) { --fm-strength:72%; }
+    .fm:has(.badge:active) :is(.glass, .badge.plain) { filter:brightness(1.12) saturate(1.35); }
     .fm-line { fill:none; stroke:var(--fm-line); stroke-width:2; stroke-linejoin:round; }
-    .fm-l1, .fm-l2 { fill:none; stroke-linecap:round; stroke-linejoin:round; }
-    .fm-l1 { stroke:var(--fm-line); } .fm-l2 { stroke:var(--fm-line2); }
-    :host { --bg:#fff; --fg:#1d1d1f; --muted:#6b7280; --line:#e5e7eb; --hover:#f3f4f6; --accent:#2563eb; --accent-fg:#fff; --err:#b91c1c; }
-    @media (prefers-color-scheme: dark) { :host { --bg:#1f2023; --fg:#ececef; --muted:#9ca3af; --line:#3a3b40; --hover:#2a2b2f; --accent:#60a5fa; --accent-fg:#0b1220; --err:#f87171; } }
+    .fm-at { fill:none; stroke:var(--fm-line); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+    .fm-y { fill:var(--fm-amber); } .fm-d { fill:var(--fm-line); }
     * { box-sizing:border-box; font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; }
     [hidden] { display:none !important; }
     .ring { position:fixed; pointer-events:none; }
-    .badge { position:fixed; width:28px; height:28px; padding:0; border:0; border-radius:50%; cursor:pointer; display:grid; place-items:center;
-      background:var(--fm-fill); box-shadow:0 0 0 1.5px var(--fm-line), 0 0 4px var(--fm-glow); }
+    .ring svg { position:absolute; left:0; top:0; overflow:visible; }
+    /* Glass: the neck and bubble only, clipped to the outline; the field keeps the site's own background. */
+    .glass, .badge.plain { isolation:isolate;
+      background:linear-gradient(color-mix(in srgb,var(--fm-glass) var(--fm-strength),transparent),color-mix(in srgb,var(--fm-glass) var(--fm-strength),transparent)),
+                 color-mix(in srgb,var(--fm-milk) var(--fm-milk-mix),transparent);
+    }
+    .badge.plain, .frost { -webkit-backdrop-filter:blur(10px) saturate(1.6); backdrop-filter:blur(10px) saturate(1.6); }
+    /* Chrome drops the mask on an element with a backdrop filter, so the blur is its own layer, starting where the tint is full. */
+    .frost { position:absolute; }
+    .glass { position:absolute; /* fades in along the neck, so the field seems to swell into the bubble */
+      -webkit-mask-image:linear-gradient(to right, transparent, #000 var(--fm-fade)); mask-image:linear-gradient(to right, transparent, #000 var(--fm-fade)); }
+    .glass::after, .badge.plain::after { content:""; position:absolute; inset:0; z-index:-1; border-radius:inherit; pointer-events:none;
+      background:var(--fm-grain-img) 0 0/180px 180px; mix-blend-mode:screen; opacity:var(--fm-grain); }
+    .badge { position:fixed; padding:0; border:0; cursor:pointer; display:grid; place-items:center; background:none; }
+    .badge.plain { width:32px; height:28px; /* a little wider than tall, so the pebble corners never round into a circle */ border:1.5px solid var(--fm-line); border-radius:12px 15px 13px 16px / 15px 12px 16px 13px;
+      box-shadow:0 0 4px var(--fm-glow); }
     .badge svg { width:20px; height:20px; overflow:visible; }
-    .badge.ghost { background:transparent; box-shadow:none; }
+    .badge.plain .fm-at { stroke-width:2.4; } /* 2px on screen: the 24-unit icon is drawn at 20px */
+    .badge.ghost { border-radius:46% 54% 50% 50% / 48% 46% 54% 52%; } /* clear click area over the drawn bubble, shaped like it */
     .badge.ghost svg { display:none; }
-    .badge:focus-visible { outline:2px solid var(--fm-line); outline-offset:2px; }
+    .badge:focus-visible { outline:2px solid var(--fm-focus); outline-offset:3px; }
     .panel { position:fixed; width:300px; max-width:calc(100vw - 16px); padding:12px; border-radius:10px;
       background:var(--bg); color:var(--fg); border:1px solid var(--line); box-shadow:0 8px 28px rgba(0,0,0,.22); }
     .title { font-weight:600; margin-bottom:8px; }
@@ -53,16 +73,18 @@
     li button { width:100%; text-align:left; padding:5px 6px; border:0; border-radius:6px; background:none; color:var(--fg); cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     li button:hover, li button:focus-visible { background:var(--hover); outline:none; }
   </style>
+  <div class="fm">
   <div class="ring" hidden></div>
-  <button class="badge" title="Create Fastmail alias" aria-label="Create Fastmail alias" hidden><svg viewBox="0 0 24 24" stroke-width="2.4" aria-hidden="true">${LOGO}</svg></button>
+  <button class="badge" title="Create Fastmail alias" aria-label="Create Fastmail alias" hidden><svg viewBox="0 0 24 24" aria-hidden="true">${BADGE_AT}</svg></button>
   <div class="panel" role="dialog" aria-label="Fastmail alias" hidden>
     <div class="title">Fastmail alias</div>
     <div class="row"><input class="prefix" spellcheck="false" autocomplete="off" aria-label="Alias prefix" placeholder="prefix"><button class="create">Create</button></div>
     <div class="msg" role="alert" hidden></div>
     <div class="existing" hidden><div class="label">Already have one here</div><ul></ul></div>
+  </div>
   </div>`;
   const $ = s => root.querySelector(s);
-  const ring = $('.ring'), badge = $('.badge'), panel = $('.panel'), prefixIn = $('.prefix'), createBtn = $('.create'), msg = $('.msg'), existing = $('.existing');
+  const wrap = $('.fm'), ring = $('.ring'), badge = $('.badge'), panel = $('.panel'), prefixIn = $('.prefix'), createBtn = $('.create'), msg = $('.msg'), existing = $('.existing');
 
   // --- Which fields get the badge ---------------------------------------------------------------
   const SEARCH_WORD_RE = /search|find|filter|query/i;
@@ -184,14 +206,28 @@
       s.borderTopStyle === 'none' || /^transparent$|rgba\(.*,\s*0\)$/.test(s.borderTopColor);
   }
 
-  // Field outline (in field coordinates) that pinches at the right and flows into a circle of radius R.
-  // For a 316x44 field with radius 8 this is exactly the reference design, shifted up 7px.
-  // Bubble circle in field coordinates: mostly over the field's right end, poking out a little.
-  // With another extension's icon there, the bubble moves outside the field, just right of that icon.
-  const circle = (w, h) => {
-    const R = Math.round(0.45 * h);
-    return { R, cx: neighbor ? Math.max(w + R * 0.6, neighbor.right + R + 6) : w - R * 0.25, cy: h / 2 };
-  };
+  // Pebble geometry in field coordinates, scaled from a reference drawing at H=42 (k = 1 at a 44px field): in the reference
+  // the field's top edge runs at y=9, meets the neck at x=204, the pebble spans x~214-263.5 and y 4.4-55.6, centered at (240,30).
+  // The bubble overlaps the field's right end by ~0.33H; with another extension's icon there it moves just right of that icon.
+  function geom(w, h) {
+    const k = (h - 2) / 42;
+    let E = w - 0.33 * h - 14 * k;
+    if (neighbor) E = Math.max(E, neighbor.right + 6 - 12 * k);
+    const X = x => E + (x - 204) * k, Y = y => 1 + (y - 9) * k;
+    return { k, X, Y, cx: X(240), cy: Y(30), left: X(214), right: X(263.5), top: Y(4.4), bottom: Y(55.6) };
+  }
+
+  // One continuous outline: top edge, S-curve neck, around the uneven pebble, neck, bottom edge, the field's own left corners.
+  // dx/dy shift it into another box's coordinates (the glass layer's clip-path).
+  function pebblePath(g, h, dx = 0, dy = 0) {
+    const f = n => +n.toFixed(2), P = (x, y) => `${f(g.X(x) - dx)} ${f(g.Y(y) - dy)}`;
+    const rr = Math.max(0, Math.min(radius, h / 2 - 1)), x0 = 1 - dx, y0 = 1 - dy, y1 = h - 1 - dy;
+    return `M${f(x0 + rr)} ${f(y0)}H${f(g.X(204) - dx)}` +
+      `C${P(211, 9)} ${P(213, 7.8)} ${P(218, 6.5)}C${P(224, 4.8)} ${P(231, 4.4)} ${P(239, 4.6)}` +
+      `C${P(253, 5)} ${P(263.5, 15)} ${P(263.5, 30)}C${P(263.5, 45)} ${P(252, 55.6)} ${P(238, 55.4)}` +
+      `C${P(231, 55.3)} ${P(224, 54.8)} ${P(218, 53.3)}C${P(213, 52.2)} ${P(211, 51)} ${P(204, 51)}` +
+      `H${f(x0 + rr)}A${f(rr)} ${f(rr)} 0 0 1 ${f(x0)} ${f(y1 - rr)}V${f(y0 + rr)}A${f(rr)} ${f(rr)} 0 0 1 ${f(x0 + rr)} ${f(y0)}Z`;
+  }
 
   // --- Other extensions' inline icons (password managers) -----------------------------------------
   // Matched against tag name, id, class and extension-iframe src (the store IDs). Colors are their brand blues/reds.
@@ -246,29 +282,65 @@
   }
 
   function ringSvg(w, h) {
-    const f = n => +n.toFixed(2), { R, cx, cy } = circle(w, h), k = 0.707 * R, ex = cx - k, nx = cx - R - 8;
-    const y0 = 1, y1 = h - 1, rr = Math.max(0, Math.min(radius, h / 2 - 1)), s = 0.62 * R / 9;
-    // Neck: leaves the edge at nx, dips slightly, and meets the circle tangent at its 135deg/225deg points.
-    const d = `M${f(1 + rr)} ${y0}H${f(nx)}C${f(nx + 6)} ${y0} ${f(ex - 3)} ${f(cy - k + 3)} ${f(ex)} ${f(cy - k)}` +
-      `A${R} ${R} 0 1 1 ${f(ex)} ${f(cy + k)}C${f(ex - 3)} ${f(cy + k - 3)} ${f(nx + 6)} ${f(y1)} ${f(nx)} ${f(y1)}` +
-      `H${f(1 + rr)}A${f(rr)} ${f(rr)} 0 0 1 1 ${f(y1 - rr)}V${f(y0 + rr)}A${f(rr)} ${f(rr)} 0 0 1 ${f(1 + rr)} ${y0}Z`;
+    const f = n => +n.toFixed(2), g = geom(w, h), { k, X, Y } = g, P = (x, y) => `${f(X(x))} ${f(Y(y))}`, d = pebblePath(g, h);
+    // The @, ~0.62H tall: its outer arc's tail curls out to meet the outline at about 4:30, tangent to it.
+    const at = `M${P(247, 25.5)}V${f(Y(31.5))}A${f(3 * k)} ${f(3 * k)} 0 0 0 ${P(253, 31.5)}V${f(Y(30))}` +
+      `A${f(13 * k)} ${f(13 * k)} 0 1 0 ${P(245, 42)}C${P(249, 43.5)} ${P(253, 46.4)} ${P(256, 48.4)}`;
+    const r = 4.62 * k, q = 0.7071 * r, { cx, cy } = g; // center dot, split along the diagonal
+    const dot = `<path class="fm-y" d="M${f(cx - q)} ${f(cy + q)}A${f(r)} ${f(r)} 0 0 1 ${f(cx + q)} ${f(cy - q)}Z"/>` +
+      `<path class="fm-d" d="M${f(cx + q)} ${f(cy - q)}A${f(r)} ${f(r)} 0 0 1 ${f(cx - q)} ${f(cy + q)}Z"/>`;
+    // Glass box: from where the neck starts (or just past another extension's icon, so we never blur it) to the pebble's edge.
+    const gx = f(Math.max(X(204), neighbor ? neighbor.right + 2 : -Infinity)), gy = f(g.top - 1);
+    const box = x0 => `left:${x0}px;top:${gy}px;width:${f(g.right + 1 - x0)}px;height:${f(g.bottom + 1 - gy)}px;clip-path:path('${pebblePath(g, h, x0, gy)}')`;
+    const fx = f(Math.max(gx + 8, X(234)));
+    const glass = `<div class="frost" style="${box(fx)}"></div><div class="glass" style="${box(gx)};--fm-fade:${f(fx - gx)}px"></div>`;
     // Sharing the field: the outline (and its glow) runs from their color at their icon, blends where the neck
     // meets our bubble, and is ours from there on.
     let glow = 'filter:drop-shadow(0 0 4px var(--fm-glow))', defs = '', stroke = '';
     if (neighbor) {
-      const c = neighbor.color, mid = neighbor.mid;
+      const c = neighbor.color, mid = neighbor.mid, join = X(218);
       defs = `<defs><linearGradient id="fm-g" gradientUnits="userSpaceOnUse" x1="${f(mid)}" y1="0" x2="${f(cx)}" y2="0">` +
-        `<stop offset="0" style="stop-color:${c}"/><stop offset="${f((ex - mid) / (cx - mid))}" style="stop-color:color-mix(in oklab, ${c}, var(--fm-line))"/>` +
+        `<stop offset="0" style="stop-color:${c}"/><stop offset="${f((join - mid) / (cx - mid))}" style="stop-color:color-mix(in oklab, ${c}, var(--fm-line))"/>` +
         `<stop offset="1" style="stop-color:var(--fm-line)"/></linearGradient>` +
         `<filter id="fm-b" x="-5%" y="-40%" width="110%" height="180%"><feGaussianBlur stdDeviation="2"/></filter></defs>` +
         `<path d="${d}" filter="url(#fm-b)" style="fill:none;stroke:url(#fm-g);stroke-width:3;opacity:.6"/>`;
       glow = '';
       stroke = ' style="stroke:url(#fm-g)"';
     }
-    return `<svg width="${f(w)}" height="${f(h)}" style="overflow:visible;${glow}">${defs}
-      <circle class="fm-fill" cx="${f(cx)}" cy="${f(cy)}" r="${R - 0.5}"/><circle class="fm-tint" cx="${f(cx)}" cy="${f(cy)}" r="${R - 0.5}"/>
-      <path class="fm-line" d="${d}"${stroke}/>
-      <g transform="translate(${f(cx - 12 * s)} ${f(cy - 12 * s)}) scale(${f(s)})" stroke-width="${f(2 / s)}">${LOGO}</g></svg>`;
+    return `${glass}<svg width="${f(w)}" height="${f(h)}" style="${glow}">${defs}
+      <path class="fm-line" d="${d}"${stroke}/><path class="fm-at" d="${at}"/>${dot}</svg>`;
+  }
+
+  // Light or dark glass, from the first solid background behind the field. A page that paints no background at all shows
+  // the browser's canvas: white, unless the page opts into dark with color-scheme, and then the browser setting decides.
+  const probe = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+  function darkBehind(el) {
+    const lin = v => (v /= 255) <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4;
+    for (let n = el; n; n = up(n)) {
+      if (!(n instanceof Element)) continue;
+      probe.clearRect(0, 0, 1, 1);
+      probe.fillStyle = '#0000';
+      probe.fillStyle = getComputedStyle(n).backgroundColor; // the canvas parses any CSS color format
+      probe.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = probe.getImageData(0, 0, 1, 1).data;
+      if (a >= 128) return .2126 * lin(r) + .7152 * lin(g) + .0722 * lin(b) < .2;
+    }
+    return /dark/.test(getComputedStyle(document.documentElement).colorScheme) && matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  // Sand-grain texture for the glass, made once on a detached canvas (a data URL: nothing for pages to probe for).
+  let grainSet = false;
+  function setGrain() {
+    if (grainSet) return;
+    grainSet = true;
+    const c = Object.assign(document.createElement('canvas'), { width: 180, height: 180 }), x = c.getContext('2d'), img = x.createImageData(180, 180);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const r = Math.random();
+      img.data.fill(255, i, i + 3);
+      img.data[i + 3] = 70 * r ** 8 + (r > 0.993 ? 45 : 0);
+    }
+    x.putImageData(img, 0, 0);
+    wrap.style.setProperty('--fm-grain-img', `url(${c.toDataURL()})`);
   }
 
   function place() {
@@ -280,29 +352,31 @@
     shift = { x: shift.x - h0.left, y: shift.y - h0.top };
     host.style.translate = `${shift.x}px ${shift.y}px`;
     let size, x, y;
-    // No room right of their icon (field near the screen edge): plain badge below the field's right end.
-    const c0 = circle(r.width, r.height), below = bubbleOk && !!neighbor && r.left + c0.cx + c0.R + 2 > innerWidth;
-    setBubble(bubbleOk && !below);
+    // No room for the pebble before the screen edge: the plain badge instead (below the field if their icon is in the way).
+    const g = geom(r.width, r.height), fits = r.left + g.right + 2 <= innerWidth, below = bubbleOk && !fits && !!neighbor;
+    setBubble(bubbleOk && fits);
     ring.hidden = !bubble;
     badge.classList.toggle('ghost', bubble);
+    badge.classList.toggle('plain', !bubble);
     if (bubble) {
       const key = r.width + 'x' + r.height + (neighbor ? `:${neighbor.right}:${neighbor.color}` : '');
       if (key !== drawn) { ring.innerHTML = ringSvg(r.width, r.height); drawn = key; }
       ring.style.left = r.left + 'px';
       ring.style.top = r.top + 'px';
-      const { R, cx, cy } = circle(r.width, r.height);
-      size = Math.max(40, 2 * R); // clickable circle over the bubble (the SVG ignores the mouse), never under 40px
-      x = r.left + cx - size / 2;
-      y = r.top + cy - size / 2;
+      // Clickable area over the pebble (the SVG ignores the mouse), never under 40px; its focus ring sits 3px outside it.
+      const bw = Math.max(40, g.right - g.left), bh = Math.max(40, g.bottom - g.top);
+      x = r.left + (g.left + g.right - bw) / 2;
+      y = r.top + (g.top + g.bottom - bh) / 2;
+      Object.assign(badge.style, { left: x + 'px', top: y + 'px', width: bw + 'px', height: bh + 'px' });
     } else {
       size = 28;
-      if (below) { x = r.right - size; y = r.bottom + 4; }
+      if (below) { x = r.right - 32; y = r.bottom + 4; }
       else { // left of their icon, or ~28px in from the right edge where password managers usually put theirs
-        x = Math.max(r.left + 2, neighbor ? r.left + neighbor.left - size - 4 : r.right - 56);
+        x = Math.max(r.left + 2, neighbor ? r.left + neighbor.left - 32 - 4 : r.right - 60);
         y = r.top + (r.height - size) / 2;
       }
     }
-    Object.assign(badge.style, { left: x + 'px', top: y + 'px', width: size + 'px', height: size + 'px' });
+    if (!bubble) Object.assign(badge.style, { left: x + 'px', top: y + 'px', width: '', height: '' }); // size comes from .plain
     if (panel.hidden) return;
     const w = panel.offsetWidth, h = panel.offsetHeight, gap = bubble ? 8 : below ? 36 : 4;
     panel.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
@@ -318,6 +392,8 @@
       const s = getComputedStyle(el);
       radius = parseFloat(s.borderTopLeftRadius) || 0;
       bubbleOk = !plainLook(el.getBoundingClientRect(), s);
+      wrap.classList.toggle('dark', darkBehind(el));
+      setGrain();
       updateNeighbor();
       rechecks.forEach(clearTimeout);
       // Password managers draw their icons a moment after focus.
