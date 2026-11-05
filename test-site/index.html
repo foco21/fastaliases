@@ -19,6 +19,12 @@
   .expected b { font-weight: 600; }
   label { display: block; font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
   input, textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); font: inherit; }
+  /* 22: Material-style floating label. The <input> has no border; the visible one is on the wrapper, and it thickens on focus. */
+  .fl { position: relative; width: calc(100% - 56px); height: 56px; padding: 0 14px; border: 1px solid #79747e; border-radius: 8px; background: var(--card); }
+  .fl:focus-within { border: 2px solid #0b57d0; padding: 0 13px; }
+  .fl input { height: 100%; padding: 18px 40px 2px 0; border: 0; border-radius: 0; outline: none; background: transparent; }
+  .fl label { position: absolute; left: 14px; top: 17px; margin: 0; color: var(--muted); pointer-events: none; transition: top .15s, font-size .15s; }
+  .fl input:focus + label, .fl input:not(:placeholder-shown) + label { top: 6px; font-size: 12px; }
   textarea { min-height: 70px; resize: vertical; }
   button { margin-top: 12px; padding: 9px 16px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
   button.plain { background: transparent; color: var(--fg); border: 1px solid var(--line); }
@@ -257,6 +263,22 @@
     <div id="shared-wrap" style="position:relative;width:calc(100% - 56px)"><input type="email" id="shared" name="email" style="width:100%"></div>
   </div>
 
+  <div class="card">
+    <h3>22. Floating label, border on a wrapper, with another extension's icon</h3>
+    <p class="muted">The input itself is borderless; the outline you see belongs to its wrapper. A Bitwarden-style shield appears 200ms after focus.</p>
+    <p class="expected">Expected: <b>badge</b>, with the outline traced around the wrapper (not the plain badge), sitting right of the shield without covering it.</p>
+    <div class="row"><span style="flex:1;font-size:13px;font-weight:600">Floating-label email</span><span class="st" data-check="floating"></span></div>
+    <div class="fl" id="floating-wrap"><input type="email" id="floating" name="email" placeholder=" "><label for="floating">Email address</label></div>
+  </div>
+
+  <div class="card">
+    <h3>23. Small field with another extension's icon</h3>
+    <p class="muted">A 32px field gets the plain badge. The shield appears 200ms after focus.</p>
+    <p class="expected">Expected: <b>badge</b>, just outside the field's right edge, at least 6px from the field and the shield.</p>
+    <div class="row"><label for="short-shared">Small email with an icon</label><span class="st" data-check="short-shared"></span></div>
+    <div id="short-shared-wrap" style="position:relative"><input type="email" id="short-shared" name="email" style="height:32px;padding:4px 10px"></div>
+  </div>
+
   <h2 class="group">Fill check</h2>
   <div class="card">
     <p class="muted" style="margin-bottom:10px">What got filled into each field, and whether the input and change events fired (frameworks like React only notice a fill through these events).</p>
@@ -379,33 +401,44 @@
     { id: 'in-search-div', name: '20 In .site-search', expect: 'none', el: () => $id('in-search-div') },
     { id: 'readonly', name: '20 Read-only', expect: 'none', el: () => $id('readonly') },
     { id: 'disabled', name: '20 Disabled', expect: 'none', el: () => $id('disabled') },
-    { id: 'shared', name: '21 Shared field', expect: 'badge', el: () => $id('shared'), verify: verifyShared },
+    { id: 'shared', name: '21 Shared field', expect: 'badge', el: () => $id('shared'), verify: el => verifyBeside(el, 'bubble') },
+    { id: 'floating', name: '22 Floating label', expect: 'badge', el: () => $id('floating'), verify: el => verifyBeside(el, 'bubble') },
+    { id: 'short-shared', name: '23 Small + icon', expect: 'badge', el: () => $id('short-shared'), verify: el => verifyBeside(el, 'plain') },
   ];
   CHECKS.forEach(c => { c.state = 'untested'; });
 
-  // 21: the fake icon comes and goes with focus, like a password manager's.
-  let shieldTimer;
-  $id('shared').addEventListener('focus', () => {
-    clearTimeout(shieldTimer);
-    shieldTimer = setTimeout(() => {
-      if (document.querySelector('.bitwarden-inline-icon')) return;
-      $id('shared-wrap').insertAdjacentHTML('beforeend', '<span class="bitwarden-inline-icon" style="position:absolute;right:8px;top:50%;width:24px;height:24px;margin-top:-12px;display:grid;place-items:center">' +
-        '<svg width="24" height="24" viewBox="0 0 24 24"><path fill="#175DDC" d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/></svg></span>');
-    }, 200);
-  });
-  $id('shared').addEventListener('blur', () => { clearTimeout(shieldTimer); document.querySelector('.bitwarden-inline-icon')?.remove(); });
-  // Our layer is a closed shadow root, so check from outside: the shield's center must still be the shield,
-  // and the spot just right of it must be ours.
-  async function verifyShared(el) {
+  // 21-23: a fake password-manager icon comes and goes with focus, like Bitwarden's.
+  const shieldTimers = {};
+  for (const [id, size] of [['shared', 24], ['floating', 24], ['short-shared', 20]]) {
+    const wrap = $id(id + '-wrap');
+    $id(id).addEventListener('focus', () => {
+      clearTimeout(shieldTimers[id]);
+      shieldTimers[id] = setTimeout(() => {
+        if (wrap.querySelector('.bitwarden-inline-icon')) return;
+        wrap.insertAdjacentHTML('beforeend', `<span class="bitwarden-inline-icon" style="position:absolute;right:8px;top:50%;width:${size}px;height:${size}px;margin-top:-${size / 2}px;display:grid;place-items:center">` +
+          `<svg width="${size}" height="${size}" viewBox="0 0 24 24"><path fill="#175DDC" d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/></svg></span>`);
+      }, 200);
+    });
+    $id(id).addEventListener('blur', () => { clearTimeout(shieldTimers[id]); wrap.querySelector('.bitwarden-inline-icon')?.remove(); });
+  }
+  // Our layer is a closed shadow root, so check from outside with hit-testing: the shield's center must still be the shield,
+  // and our badge must be beside it: right of it for the traced bubble, left of it (6px or more away) for the plain badge.
+  async function verifyBeside(el, look) {
     el.scrollIntoView({ block: 'center' }); // hit-testing only sees what's on screen
     await sleep(600); // shield at 200ms, extension re-checks at 300ms
-    const icon = document.querySelector('.bitwarden-inline-icon')?.getBoundingClientRect();
+    const icon = el.closest('[id$="-wrap"]').querySelector('.bitwarden-inline-icon')?.getBoundingClientRect();
     if (!icon) return 'the fake icon never appeared';
-    const midY = icon.top + icon.height / 2;
-    const atIcon = document.elementFromPoint(icon.left + icon.width / 2, midY), right = document.elementFromPoint(icon.right + 20, midY);
+    const midY = icon.top + icon.height / 2, ours = (x, y = midY) => document.elementFromPoint(x, y)?.localName === 'fastmail-alias';
+    const got = el.getAttribute('data-fmalias-look') || '';
     if (el.getAttribute('data-fmalias-neighbor') !== 'Bitwarden') return 'extension did not notice the Bitwarden icon';
-    if (atIcon?.localName === 'fastmail-alias') return 'our bubble covers the other icon';
-    if (right?.localName !== 'fastmail-alias') return 'our bubble is not right of the other icon';
+    if (look === 'bubble' && !got.startsWith('traced')) return 'expected the traced outline, got ' + got;
+    if (ours(icon.left + icon.width / 2)) return 'our badge covers the other icon';
+    if (look === 'bubble' && !ours(icon.right + 20)) return 'our bubble is not right of the other icon';
+    if (look === 'plain') {
+      const f = el.getBoundingClientRect(), right = Math.max(f.right, icon.right);
+      if ([1, 3, 5].some(d => ours(icon.left - d) || ours(right + d))) return 'our badge is closer than 6px to the field or the other icon';
+      if (!ours(right + 6 + 16)) return "our badge is not just outside the field's right edge";
+    }
     return '';
   }
 

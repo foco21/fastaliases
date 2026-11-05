@@ -4,7 +4,8 @@
   let lastField = null; // last focused email field, filled from the toolbar popup
   let ctxTarget = null; // last right-clicked element, for the context menu
   let bubble = false;   // true: outline + bubble overlay; false: plain round badge
-  let radius = 0;       // field's own corner radius, read before we hide its border
+  let frame = null;     // element whose box we trace: the field, or the wrapper that draws its border (floating labels)
+  let radius = 0;       // frame's own corner radius, read before we hide its border
   let savedStyle = null, drawn = '', shift = { x: 0, y: 0 };
   let bubbleOk = false; // field suits the traced outline (bubble may still fall back if there's no room)
   let neighbor = null;  // another extension's inline icon at the field's right end, in field coordinates
@@ -201,9 +202,58 @@
   }
 
   // Tiny, pill-shaped or borderless fields get the plain badge: the traced outline would look wrong on them.
-  function plainLook(r, s) {
-    return r.height <= 32 || r.width < 120 || radius >= r.height / 2 - 2 || !parseFloat(s.borderTopWidth) ||
-      s.borderTopStyle === 'none' || /^transparent$|rgba\(.*,\s*0\)$/.test(s.borderTopColor);
+  const clear = c => /^transparent$|rgba\(.*,\s*0\)$/.test(c);
+  const visibleBorder = s => parseFloat(s.borderTopWidth) > 0 && s.borderTopStyle !== 'none' && !clear(s.borderTopColor);
+  // A box-shadow that draws a line rather than a soft shadow: no offset, (almost) no blur, inset or a 0.5-3px spread.
+  const lineShadow = s => s.boxShadow !== 'none' && s.boxShadow.split(/,(?![^(]*\))/).some(sh => {
+    const m = sh.match(/(rgba?\([^)]*\)|#\w+)\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+([\d.]+)px(?:\s+(-?[\d.]+)px)?(\s+inset)?/);
+    return m && !clear(m[1]) && !+m[2] && !+m[3] && +m[4] <= 1 && (m[6] || (+m[5] >= 0.5 && +m[5] <= 3));
+  });
+  const visibleOutline = s => s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0 && !clear(s.outlineColor);
+  // A solid fill that stands out from what's behind it (Reddit's grey field on a white modal).
+  function filledBox(n, s) {
+    const [r, g, b, a] = rgbaOf(s.backgroundColor);
+    if (a < 128) return false;
+    for (let p = up(n); p instanceof Element; p = up(p)) {
+      const [r2, g2, b2, a2] = rgbaOf(getComputedStyle(p).backgroundColor);
+      if (a2 >= 128) return Math.abs(r - r2) + Math.abs(g - g2) + Math.abs(b - b2) > 24;
+    }
+    return r + g + b < 740; // nothing painted behind: the white canvas
+  }
+  // Why this element looks like a field's box, or '' when it doesn't.
+  function boxOf(n) {
+    const s = getComputedStyle(n);
+    if (visibleBorder(s)) return 'border';
+    if (lineShadow(s)) return 'box-shadow';
+    if (visibleOutline(s)) return 'outline';
+    for (const pe of ['::before', '::after']) {
+      const p = getComputedStyle(n, pe);
+      if (p.content !== 'none' && (visibleBorder(p) || lineShadow(p))) return pe;
+    }
+    return filledBox(n, s) ? 'fill' : '';
+  }
+  // Returns why the plain badge is used, or '' to trace the outline.
+  function plainLook(r, box) {
+    if (r.height <= 32) return `short (${Math.round(r.height)}px tall)`;
+    if (r.width < 120) return `narrow (${Math.round(r.width)}px wide)`;
+    if (radius >= r.height / 2 - 2) return 'pill-shaped';
+    if (!box) return 'no visible border';
+    return '';
+  }
+  // Floating-label and component fields: the <input> is bare and a wrapper draws the box, sometimes across a shadow root
+  // (Reddit). Use the first of up to 6 ancestors that looks like a box and is within ~24px of the input on each side,
+  // so a form or card around it never counts. Returns [element, why].
+  function frameFor(el) {
+    const own = boxOf(el);
+    if (own) return [el, own];
+    const ir = el.getBoundingClientRect();
+    for (let n = up(el), i = 0; n instanceof Element && i < 6; n = up(n), i++) {
+      const r = n.getBoundingClientRect();
+      if (r.width < ir.width - 2 || r.width > ir.width + 48 || r.height > ir.height + 48) continue;
+      const why = boxOf(n);
+      if (why) return [n, why];
+    }
+    return [el, ''];
   }
 
   // Pebble geometry in field coordinates, scaled from a reference drawing at H=42 (k = 1 at a 44px field): in the reference
@@ -252,8 +302,8 @@
     }
     return null;
   };
-  function findNeighbor(el) {
-    const r = el.getBoundingClientRect(), skip = new Set([el, host, ...ancestors(el)]), seen = new Set(), found = [];
+  function findNeighbor(el, box = el) {
+    const r = box.getBoundingClientRect(), skip = new Set([el, host, ...ancestors(el)]), seen = new Set(), found = [];
     const consider = (n, hitTest) => {
       if (seen.has(n) || skip.has(n)) return;
       seen.add(n);
@@ -277,7 +327,7 @@
       mid: Math.round((nb.rect.left + nb.rect.right) / 2 - r.left) };
   }
   function updateNeighbor() {
-    neighbor = findNeighbor(field);
+    neighbor = findNeighbor(field, frame);
     if (neighbor) field.setAttribute('data-fmalias-neighbor', neighbor.name); else field.removeAttribute('data-fmalias-neighbor');
   }
 
@@ -314,15 +364,18 @@
   // Light or dark glass, from the first solid background behind the field. A page that paints no background at all shows
   // the browser's canvas: white, unless the page opts into dark with color-scheme, and then the browser setting decides.
   const probe = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+  function rgbaOf(color) { // the canvas parses any CSS color format
+    probe.clearRect(0, 0, 1, 1);
+    probe.fillStyle = '#0000';
+    probe.fillStyle = color;
+    probe.fillRect(0, 0, 1, 1);
+    return probe.getImageData(0, 0, 1, 1).data;
+  }
   function darkBehind(el) {
     const lin = v => (v /= 255) <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4;
     for (let n = el; n; n = up(n)) {
       if (!(n instanceof Element)) continue;
-      probe.clearRect(0, 0, 1, 1);
-      probe.fillStyle = '#0000';
-      probe.fillStyle = getComputedStyle(n).backgroundColor; // the canvas parses any CSS color format
-      probe.fillRect(0, 0, 1, 1);
-      const [r, g, b, a] = probe.getImageData(0, 0, 1, 1).data;
+      const [r, g, b, a] = rgbaOf(getComputedStyle(n).backgroundColor);
       if (a >= 128) return .2126 * lin(r) + .7152 * lin(g) + .0722 * lin(b) < .2;
     }
     return /dark/.test(getComputedStyle(document.documentElement).colorScheme) && matchMedia('(prefers-color-scheme: dark)').matches;
@@ -344,8 +397,8 @@
   }
 
   function place() {
-    const r = field?.getBoundingClientRect();
-    if (!field?.isConnected || !r.width) return hide();
+    const r = frame?.getBoundingClientRect();
+    if (!field?.isConnected || !frame.isConnected || !r.width) return hide();
     // Inside a pop-up centered with a CSS transform, "fixed" means fixed to the pop-up, not the screen.
     // Our layer is translated back onto the screen's corner; any translate also makes it the reference box for our parts.
     const h0 = host.getBoundingClientRect();
@@ -371,8 +424,12 @@
     } else {
       size = 28;
       if (below) { x = r.right - 32; y = r.bottom + 4; }
-      else { // left of their icon, or ~28px in from the right edge where password managers usually put theirs
-        x = Math.max(r.left + 2, neighbor ? r.left + neighbor.left - 32 - 4 : r.right - 60);
+      else if (neighbor) { // their icon is in the field: we go just outside its right edge, 6px clear of the field and the icon
+        x = r.left + Math.max(r.width, neighbor.right) + 6;
+        y = r.top + (r.height - size) / 2;
+        if (x + 32 > innerWidth) { x = r.right - 32; y = r.bottom + 4; } // no room on screen: below the field's right end
+      } else { // ~28px in from the right edge, where password managers usually put theirs
+        x = Math.max(r.left + 2, r.right - 60);
         y = r.top + (r.height - size) / 2;
       }
     }
@@ -389,15 +446,18 @@
       bubble = false;
       unmark(field);
       field = el;
-      const s = getComputedStyle(el);
-      radius = parseFloat(s.borderTopLeftRadius) || 0;
-      bubbleOk = !plainLook(el.getBoundingClientRect(), s);
+      measure(el);
       wrap.classList.toggle('dark', darkBehind(el));
       setGrain();
       updateNeighbor();
       rechecks.forEach(clearTimeout);
       // Password managers draw their icons a moment after focus.
-      rechecks = [300, 1000].map(t => setTimeout(() => { if (field === el) { updateNeighbor(); place(); } }, t));
+      // A field focused as the page loads can be measured mid-transition (x.com fades its border in), so until it's traced
+      // the look is decided again too. Once traced we've hidden its border ourselves, so there's nothing left to re-read.
+      rechecks = [300, 1000].map(t => setTimeout(() => { if (field === el) { if (!bubbleOk) measure(el); updateNeighbor(); place(); } }, t));
+      // ...or much later, on autofocused fields: they append their icon to <html> or <body>, so watch those while we show.
+      iconWatch.disconnect();
+      for (const n of [document.documentElement, document.body]) if (n) iconWatch.observe(n, { childList: true });
     }
     const parent = containerFor(el);
     if (host.parentNode !== parent) parent.appendChild(host);
@@ -406,14 +466,29 @@
     place();
   }
 
-  // Bubble mode hides the field's own border; the plain badge leaves it alone.
+  // Decides what to trace (the field or its wrapper) and whether it gets the outline or the plain badge.
+  function measure(el) {
+    const [fr, box] = frameFor(el);
+    if (fr !== frame) { restoreBorder(); bubble = false; drawn = ''; }
+    frame = fr;
+    radius = parseFloat(getComputedStyle(frame).borderTopLeftRadius) || 0;
+    const why = plainLook(frame.getBoundingClientRect(), box);
+    bubbleOk = !why;
+    const name = frame.localName + (typeof frame.className === 'string' && frame.className.trim() ? '.' + frame.className.trim().split(/\s+/).join('.') : '');
+    const look = why ? 'plain: ' + why : frame === el ? `traced (${box})` : `traced: wrapper ${name} (${box})`;
+    if (el.getAttribute('data-fmalias-look') !== look && debug) console.log(`[FMAlias] ${look}`);
+    el.setAttribute('data-fmalias-look', look);
+  }
+
+  // Bubble mode hides the frame's border (and, for a wrapper, the input's own focus ring); the plain badge leaves them alone.
   function setBubble(on) {
     if (on === bubble) return;
     bubble = on;
     drawn = '';
     if (!on) return restoreBorder();
-    savedStyle = Object.keys(HIDDEN_STYLE).map(k => [k, field.style.getPropertyValue(k), field.style.getPropertyPriority(k)]);
-    for (const k in HIDDEN_STYLE) field.style.setProperty(k, HIDDEN_STYLE[k], 'important');
+    const targets = frame === field ? [[frame, HIDDEN_STYLE]] : [[frame, HIDDEN_STYLE], [field, { 'outline-style': 'none', 'box-shadow': 'none' }]];
+    savedStyle = targets.flatMap(([n, st]) => Object.keys(st).map(k => [n, k, n.style.getPropertyValue(k), n.style.getPropertyPriority(k)]));
+    for (const [n, st] of targets) for (const k in st) n.style.setProperty(k, st[k], 'important');
   }
 
   // Pop-up windows (aria-modal or <dialog>) pull focus back or make the rest of the page unclickable,
@@ -427,18 +502,25 @@
   }
 
   function restoreBorder() {
-    if (savedStyle && field) for (const [k, v, prio] of savedStyle) field.style.setProperty(k, v, prio);
+    if (savedStyle) for (const [n, k, v, prio] of savedStyle) n.style.setProperty(k, v, prio);
     savedStyle = null;
   }
 
+  let iconFrame = 0;
+  const iconWatch = new MutationObserver(ms => {
+    if (!field || iconFrame || ms.every(m => [...m.addedNodes, ...m.removedNodes].every(n => n === host))) return;
+    iconFrame = requestAnimationFrame(() => { iconFrame = 0; if (field) { updateNeighbor(); place(); } });
+  });
+
   function hide() { // detached when idle so pages can't spot the extension
+    iconWatch.disconnect();
     restoreBorder();
     bubble = false;
     neighbor = null;
     rechecks.forEach(clearTimeout);
     unmark(field);
     panel.hidden = badge.hidden = ring.hidden = true;
-    field = null;
+    field = frame = null;
     host.remove();
   }
 

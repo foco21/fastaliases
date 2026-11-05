@@ -21,9 +21,10 @@ Features
 • Fills the form for you, including "confirm email" fields, and works with React, Vue and web-component forms.
 • Reuse: on a site where you already have an alias, it offers that one instead of making a new one.
 • Right-click any field and choose "Create Fastmail alias here".
-• Toolbar popup: create an alias for the current site, see all your aliases, copy them, turn them off and on, or delete them.
-• Light and dark mode, following your browser.
-• Plays well with password managers: your password manager saves the login with the alias when you submit.
+• Toolbar popup: create an alias for the current site, with this site's aliases listed first and everything else one tap away. Copy, turn off and on, or delete with a 5-second undo. Click an alias to see the full address, the site it was made for and the date.
+• Light and dark: the popup follows your browser, and the @ button matches the site you're on.
+• Plays well with password managers: the @ button steps aside for Bitwarden, 1Password, LastPass, Proton Pass and Dashlane icons, and your password manager saves the login with the alias when you submit.
+• Accessible: keyboard-friendly controls, strong text contrast in both themes, and support for reduced transparency.
 
 Privacy
 • Your Fastmail API token stays in your browser and is only ever sent to api.fastmail.com.
@@ -39,7 +40,7 @@ This is an independent project. It is not made by, affiliated with or endorsed b
 Create Fastmail Masked Email addresses and fill them into email fields on web pages.
 
 ## Permission justifications
-- **storage:** Remembers the sites where the user chose "Don't show the @ button on this site" (only that list of site names), and, in memory only, which frame of a tab last showed the @ button so the popup fills the right field.
+- **storage:** Remembers the sites where the user chose "Don't show the @ button on this site" (only that list of site names), which sections of the popup's alias list are open, and whether debug mode is on. In memory only, it also remembers which frame of a tab last showed the @ button so the popup fills the right field.
 - **activeTab:** Reads the current tab's address when you open the popup, so a new alias is labeled with that site and filled into its email field.
 - **contextMenus:** Adds "Create Fastmail alias here" to the right-click menu on editable fields.
 - **Host permission api.fastmail.com:** The only server the extension talks to: it calls Fastmail's Masked Email API to list, create, turn on and off, and delete aliases.
@@ -59,11 +60,12 @@ Certify all three:
 - I do not use or transfer user data to determine creditworthiness or for lending purposes.
 
 ## Privacy policy URL
-Link to PRIVACY.md in your GitHub repo, for example:
-https://github.com/YOUR-NAME/aliases-for-fastmail/blob/main/PRIVACY.md
+https://github.com/foco21/fastaliases/blob/main/PRIVACY.md
 
 ## Images (in this folder)
-- screenshot-1.png, screenshot-2.png (1280×800)
+- screenshot-1.png: the @ button on a signup form, with its panel open (1280×800)
+- screenshot-2.png: the popup in light and dark (1280×800)
+- screenshot-3.png: next to a password manager's icon, on a light and a dark site (1280×800)
 - promo-small.png (440×280)
 - marquee.png (1400×560, optional "marquee promo tile")
 - Store icon: icons/128.png
