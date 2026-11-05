@@ -163,7 +163,14 @@
 
   // Shadow root of an element, open or closed (extensions may open closed ones, as Bitwarden does).
   // chrome.dom.openOrClosedShadowRoot throws on anything that isn't an HTML element, e.g. the SVG icons all over Reddit.
-  const shadowOf = n => n instanceof HTMLElement ? chrome.dom?.openOrClosedShadowRoot?.(n) ?? n.shadowRoot : null;
+  // After the extension is reloaded or updated, this old copy keeps running in open tabs and every chrome.* call throws
+  // "Extension context invalidated"; from then on only open shadow roots are visible (clicking the badge says to refresh).
+  let domOk = true;
+  const shadowOf = n => {
+    if (!(n instanceof HTMLElement)) return null;
+    if (domOk) try { return chrome.dom?.openOrClosedShadowRoot?.(n) ?? n.shadowRoot; } catch { domOk = false; }
+    return n.shadowRoot;
+  };
 
   // Follow focus into shadow roots, including closed ones that composedPath() hides.
   function deepTarget(el) {
