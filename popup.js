@@ -139,15 +139,14 @@ async function refresh(selectId) {
     // Two dropdown sections only when this site has an alias; otherwise one plain, always-open list.
     const split = here.length > 0;
     $('sec-here-wrap').hidden = $('sec-rest-btn').hidden = !split;
-    $('plain-head').hidden = split;
-    $('sec-rest').setAttribute('aria-labelledby', split ? 'sec-rest-title' : 'plain-title');
+    $('sec-all-btn').hidden = split;
+    $('sec-rest').setAttribute('aria-labelledby', split ? 'sec-rest-title' : 'sec-all-title');
     $('sec-here').replaceChildren(...here.map(aliasRow));
     $('sec-rest').replaceChildren(...rest.map(aliasRow));
     $('sec-here-count').textContent = here.length;
     $('sec-rest-count').textContent = rest.length;
-    $('plain-count').textContent = list.length;
-    if (split) for (const name of Object.keys(SECTIONS)) setSection(name, SECTIONS[name]);
-    else $('sec-rest').hidden = false;
+    $('sec-all-count').textContent = list.length;
+    for (const name of split ? ['here', 'rest'] : ['all']) setSection(name, SECTIONS[name]);
     select(selectId !== undefined ? selectId : list.some(a => a.id === selectedId) ? selectedId : null);
     if (fid && fact) document.querySelector(`.alias[data-id="${CSS.escape(fid)}"] [data-act="${fact}"]`)?.focus();
     $('list').hidden = !list.length;
@@ -185,8 +184,10 @@ async function showSiteSwitch() {
 }
 $('site-toggle').onchange = () => send({ type: 'setSiteHidden', host, hidden: !$('site-toggle').checked }).catch(showError);
 
-// Collapsible sections; open/closed is remembered. With no website there's only one section, so it starts open.
-const SECTIONS = { here: true, rest: false };
+// Collapsible sections; each one's open/closed state is remembered. "Your aliases" (all, when this site has none) and
+// "Everything else" show the same list, so they share its <ul> but keep separate states.
+const SECTIONS = { here: true, rest: false, all: true };
+const SECTION_LIST = { here: 'sec-here', rest: 'sec-rest', all: 'sec-rest' };
 // Mark which ends of the alias list have more to scroll to, for the fades.
 // ...and which section header is stuck at the top (only that one gets a frosted background).
 function fades() {
@@ -202,7 +203,7 @@ for (const id of ['sec-here', 'sec-rest', 'list']) listSize.observe($(id));
 function setSection(name, open) {
   SECTIONS[name] = open;
   $(`sec-${name}-btn`).setAttribute('aria-expanded', open);
-  $(`sec-${name}`).hidden = !open;
+  $(SECTION_LIST[name]).hidden = !open;
 }
 for (const name of Object.keys(SECTIONS)) $(`sec-${name}-btn`).onclick = () => {
   setSection(name, !SECTIONS[name]);
