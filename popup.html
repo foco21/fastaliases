@@ -3,33 +3,48 @@
 <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <header>
-    <button class="round" id="settings" aria-label="Settings" title="Settings">
+  <header class="sea sea-quiet">
+    <button class="rock" data-tint="frost" id="settings" aria-label="Settings" title="Settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
-    <div class="site" id="site"></div>
-    <button class="pill" id="create">Create alias</button>
+    <span class="fav sea sea-sm" id="fav" aria-hidden="true"></span>
+    <div class="site-wrap">
+      <div class="caption">This site</div>
+      <div class="site" id="site"></div>
+    </div>
+    <button class="pill sea sea-sm sea-cobalt" id="create">Create alias</button>
   </header>
 
-  <section class="card prefix-card">
+  <section class="sea sea-azure card prefix-card">
     <label for="prefix">Prefix</label>
     <input id="prefix" spellcheck="false" autocomplete="off" placeholder="optional">
   </section>
 
-  <section class="card preview" id="preview" aria-live="polite">
+  <section class="sea sea-lavender card preview" id="preview" aria-live="polite">
     <div class="caption" id="caption">You're about to create</div>
     <div class="address mono" id="address"></div>
   </section>
 
-  <label class="card switch-row" id="site-row" hidden>
+  <label class="sea sea-quiet switch-row" id="site-row" hidden>
     <span id="site-row-text">Show the @ button on this site</span>
-    <input type="checkbox" id="site-toggle" role="switch">
+    <input type="checkbox" class="sea" id="site-toggle" role="switch">
   </label>
 
   <div class="status" id="status" role="alert"></div>
 
-  <h2 id="list-title" hidden>Your aliases</h2>
-  <ul id="aliases" aria-labelledby="list-title"></ul>
+  <section class="sea sea-quiet list" id="list" hidden>
+    <div class="list-scroll">
+    <div class="sec-head plain" id="plain-head" hidden><span class="sec-title" id="plain-title">Your aliases</span><span class="count sea sea-sm" id="plain-count">0</span></div>
+    <div id="sec-here-wrap" hidden>
+      <button class="sec-head" id="sec-here-btn" aria-expanded="true" aria-controls="sec-here"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg><span class="sec-title" id="sec-here-title">For this site</span><span class="count sea sea-sm" id="sec-here-count">0</span></button>
+      <ul id="sec-here" aria-labelledby="sec-here-title"></ul>
+    </div>
+    <button class="sec-head" id="sec-rest-btn" aria-expanded="false" aria-controls="sec-rest" hidden><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg><span class="sec-title" id="sec-rest-title">Everything else</span><span class="count sea sea-sm" id="sec-rest-count">0</span></button>
+    <ul id="sec-rest" aria-labelledby="sec-rest-title"></ul>
+    </div>
+  </section>
+
+  <div class="toast sea sea-sm sea-kelp" id="toast" role="status" aria-live="polite"></div>
 
   <script src="lib.js"></script>
   <script src="popup.js"></script>

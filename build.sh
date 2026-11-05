@@ -7,6 +7,6 @@ version=$(node -p "require('./manifest.json').version")
 mkdir -p dist
 out="dist/aliases-for-fastmail-$version.zip"
 rm -f "$out"
-zip -r -X -q "$out" manifest.json background.js content.js lib.js popup.html popup.css popup.js options.html options.js ui.css LICENSE icons fonts
+zip -r -X -q "$out" manifest.json background.js content.js lib.js popup.html popup.css popup.js options.html options.js ui.css LICENSE icons fonts assets
 echo "Built $out"
 unzip -l "$out" | tail -1

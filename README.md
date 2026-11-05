@@ -1,10 +1,6 @@
-<p align="center">
-  <img src="icons/logo.svg" width="120" alt="Aliases for Fastmail logo">
-</p>
+# Aliases for Fastmail
 
-<h1 align="center">Aliases for Fastmail</h1>
-
-<p align="center"><em>An independent project, not affiliated with or endorsed by Fastmail.</em></p>
+*An independent project, not affiliated with or endorsed by Fastmail.*
 
 Chrome extension (Manifest V3, plain JS, no build step) that creates Fastmail Masked Email aliases with a custom prefix (`netflix.k3j9x@fastmail.com`) and fills them into signup forms.
 
@@ -33,8 +29,8 @@ Bitwarden is not integrated. The extension fills the email field, and when you s
 - Run `node test.js` to check the domain/prefix helpers.
 - Run `./build.sh` to make the Chrome Web Store zip in `dist/` (extension files only, no tests). Store listing text and images are in `store/`, the privacy policy in `PRIVACY.md`.
 - Manual test page: run `python3 -m http.server 8000 -d test-site` and open http://localhost:8000. It's a test bench: a second after it loads it focuses every case by itself and grades it against the "Expected" line, with **Run all checks** to repeat. Failures show the extension's reason under the field and as links in the bar at the top. It reads two attributes the extension sets on every input it evaluates: `data-fmalias` (`attached` or `skipped`) and `data-fmalias-reason` (the score breakdown or exclusion). To open it as a local file (`file:///…/test-site/index.html`) instead, first turn on **Allow access to file URLs** for the extension in `chrome://extensions` (Details page); Chrome doesn't run extensions on local files without it.
-- The popup uses IBM Plex Sans and Mono, bundled in `fonts/` (SIL Open Font License, see `fonts/OFL.txt`) so it never loads fonts from the web.
+- The popup uses Outfit, Figtree and JetBrains Mono, bundled in `fonts/` (SIL Open Font License, see `fonts/OFL-*.txt`) so it never loads fonts from the web.
 
 ## License
 
-Apache License 2.0, see [LICENSE](LICENSE). The bundled IBM Plex fonts in `fonts/` are under the SIL Open Font License 1.1 (`fonts/OFL.txt`).
+Apache License 2.0, see [LICENSE](LICENSE). The bundled fonts in `fonts/` (Outfit, Figtree, JetBrains Mono) are under the SIL Open Font License 1.1 (`fonts/OFL-*.txt`).

@@ -91,6 +91,31 @@ async function setState(id, state) {
   return {};
 }
 
+// Delete with undo: the popup asks to delete, and the API call only goes out 5 seconds later unless it's undone.
+// The timer lives here so closing the popup doesn't cancel the delete. Only one waits at a time; a second delete sends the first now.
+let pendingDelete = null; // { id, timer, resolve, reject }
+function deleteLater(id) {
+  if (typeof id !== 'string') throw fail('API', 'Bad request.');
+  sendPendingDelete();
+  return new Promise((resolve, reject) => {
+    pendingDelete = { id, resolve, reject, timer: setTimeout(sendPendingDelete, 5000) };
+  });
+}
+function sendPendingDelete() {
+  if (!pendingDelete) return;
+  const { id, timer, resolve, reject } = pendingDelete;
+  clearTimeout(timer);
+  pendingDelete = null;
+  setState(id, 'deleted').then(() => resolve({ deleted: true }), reject);
+}
+function undoDelete(id) {
+  if (pendingDelete?.id !== id) return { undone: false }; // too late: already sent
+  clearTimeout(pendingDelete.timer);
+  pendingDelete.resolve({ undone: true });
+  pendingDelete = null;
+  return { undone: true };
+}
+
 async function handle(m, sender) {
   // Content scripts run inside arbitrary pages: they only see this site's enabled aliases and create for their own origin.
   if (!isExtensionSender(sender, location.origin)) {
@@ -107,6 +132,8 @@ async function handle(m, sender) {
     case 'list': return { list: await list() };
     case 'create': return { alias: await create(m.origin, m.prefix) };
     case 'setState': return setState(m.id, m.state);
+    case 'deleteLater': return deleteLater(m.id);
+    case 'undoDelete': return undoDelete(m.id);
     case 'saveToken':
       if (typeof m.token !== 'string') throw fail('API', 'Bad request.');
       await saveToken(m.token.trim());
